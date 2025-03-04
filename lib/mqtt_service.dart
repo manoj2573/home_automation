@@ -15,7 +15,7 @@ class MqttService {
   // ✅ Connect to MQTT
   static Future<void> connect() async {
     client = MqttServerClient.withPort(
-      'anqg66n1fr3hi-ats.iot.eu-north-1.amazonaws.com', // Replace with your AWS IoT endpoint
+      'your aws endpoint here', // Replace with your AWS IoT endpoint
       'home_automation_app',
       8883,
     );
