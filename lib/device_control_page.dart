@@ -1,3 +1,4 @@
+import 'dart:convert'; // ✅ Import for jsonEncode & jsonDecode
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:get/get.dart';
@@ -23,6 +24,7 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
   Color _currentColor = Colors.white;
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final FirebaseAuth auth = FirebaseAuth.instance;
+  bool _isDragging = false;
 
   Future? _loadFuture;
   bool _isDataLoaded = false;
@@ -32,10 +34,10 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
   String selectedAction = "On"; // ✅ Default to "On"
 
   @override
-  @override
   void initState() {
     super.initState();
-    _listenToDeviceUpdates(); // ✅ Start listening to Firestore changes
+    _listenToDeviceUpdates(); // ✅ Start Firestore listener
+    _subscribeToMqtt(); // ✅ Start MQTT listener
   }
 
   void _listenToDeviceUpdates() {
@@ -56,108 +58,70 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
               widget.device.state.value = data["state"];
               _currentValue = data["sliderValue"]?.toDouble() ?? 0;
               _currentColor = _hexToColor(data["color"] ?? "#FFFFFF");
-              _isDataLoaded = true; // ✅ Ensures UI updates
+              _isDataLoaded = true;
             });
           }
         });
   }
 
+  // ✅ Subscribe to MQTT topic when page opens
+  void _subscribeToMqtt() {
+    String topic = "${widget.device.registrationId}/mobile";
+
+    if (MqttService.isConnected) {
+      MqttService.subscribe(topic);
+      print("✅ Subscribed to MQTT topic: $topic in DeviceControlPage");
+    } else {
+      print("⚠️ MQTT Not Connected - Retrying subscription...");
+      Future.delayed(Duration(seconds: 3), _subscribeToMqtt);
+    }
+
+    MqttService.setMessageHandler(_onMqttMessageReceived);
+  }
+
+  // ✅ Handle MQTT messages from registrationId/mobile
+  void _onMqttMessageReceived(String topic, String message) {
+    print(
+      "📩 Received MQTT Message in DeviceControlPage: Topic: $topic, Message: $message",
+    );
+
+    try {
+      Map<String, dynamic> data = jsonDecode(message);
+      String registrationId = topic.split('/')[0]; // Extract registrationId
+      String? deviceName = data["deviceName"]; // Extract deviceName
+
+      if (deviceName == null || deviceName != widget.device.name) {
+        print("⚠️ MQTT Message Ignored: No 'deviceName' or mismatch");
+        return;
+      }
+
+      // ✅ Extract brightness value (same for all devices)
+      double? sliderValue = data["sliderValue"]?.toDouble();
+
+      setState(() {
+        widget.device.state.value = data["state"];
+
+        // ✅ Only update `_currentValue` if the user is NOT dragging the slider
+        if (!_isDragging && sliderValue != null) {
+          _currentValue = sliderValue;
+        }
+
+        _currentColor = _hexToColor(
+          data["color"] ?? _colorToHex(_currentColor),
+        );
+      });
+
+      print(
+        "🔄 UI Updated in DeviceControlPage: ${widget.device.name}, Brightness: $_currentValue",
+      );
+    } catch (e) {
+      print("❌ Error decoding MQTT message in DeviceControlPage: $e");
+    }
+  }
+
   void _saveSliderValue(double value) async {
     String? uid = auth.currentUser?.uid;
     if (uid == null) return;
-
-    await firestore
-        .collection("users")
-        .doc(uid)
-        .collection("devices")
-        .doc(widget.device.name)
-        .update({"sliderValue": value});
-
-    _publishMQTTMessage();
-  }
-
-  void _saveSelectedColor(Color color) async {
-    String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
-
-    String hexColor = _colorToHex(color);
-    await firestore
-        .collection("users")
-        .doc(uid)
-        .collection("devices")
-        .doc(widget.device.name)
-        .update({"color": hexColor});
-
-    _publishMQTTMessage();
-  }
-
-  void _publishMQTTMessage() {
-    Map<String, dynamic> payload = {
-      'deviceName': widget.device.name,
-      'deviceType': widget.device.type,
-      'state': widget.device.state.value,
-      'pin1No': widget.device.pin,
-      'pin2No': widget.device.pin2 ?? '',
-      'brightness': _currentValue,
-      'color': _colorToHex(_currentColor),
-    };
-
-    if (MqttService.isConnected) {
-      MqttService.publishMessage(payload);
-      print("📡 MQTT Message Sent: $payload"); // ✅ Debugging log
-    } else {
-      print("⚠️ MQTT Not Connected - Retrying...");
-      Future.delayed(Duration(seconds: 3), _publishMQTTMessage); // ✅ Retry
-    }
-  }
-
-  // ✅ Pick Date & Time
-  Future<void> _pickDateTime() async {
-    DateTime now = DateTime.now();
-
-    DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: now,
-      lastDate: now.add(Duration(days: 365)),
-    );
-
-    if (pickedDate == null) return;
-
-    TimeOfDay? pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-
-    if (pickedTime == null) return;
-
-    setState(() {
-      selectedDateTime = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
-        pickedTime.hour,
-        pickedTime.minute,
-      );
-    });
-  }
-
-  // ✅ Save Schedule in Firestore & Show Confirmation
-  Future<void> _saveSchedule() async {
-    if (selectedDateTime == null) {
-      setState(() {
-        scheduleMessage = "⚠️ Please select a date and time.";
-      });
-      return;
-    }
-
-    String? uid = auth.currentUser?.uid;
-    if (uid == null) {
-      setState(() {
-        scheduleMessage = "⚠️ User not logged in.";
-      });
-      return;
-    }
 
     try {
       await firestore
@@ -165,26 +129,45 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
           .doc(uid)
           .collection("devices")
           .doc(widget.device.name)
-          .collection("schedules")
-          .doc(
-            selectedDateTime!.millisecondsSinceEpoch.toString(),
-          ) // ✅ Unique ID
-          .set({
-            "dateTime": selectedDateTime!.toIso8601String(),
-            "action": selectedAction,
+          .update({
+            "sliderValue": value, // ✅ Save slider value
           });
 
+      print("✅ Firestore Updated: ${widget.device.name} sliderValue = $value");
+
+      _publishMQTTMessage();
+    } catch (e) {
+      print("❌ Error updating Firestore sliderValue: $e");
+    }
+  }
+
+  void _publishMQTTMessage() {
+    String topic = "${widget.device.registrationId}/device";
+    Map<String, dynamic> payload = {
+      'deviceName': widget.device.name,
+      'deviceType': widget.device.type,
+      'state': widget.device.state.value,
+      'pin1No': widget.device.pin,
+      'pin2No': widget.device.pin2 ?? '',
+      'sliderValue': _currentValue, // Ensure this is consistent
+      'color': _colorToHex(_currentColor),
+    };
+
+    if (MqttService.isConnected) {
+      print("📤 Publishing to $topic: $payload");
+      MqttService.publish(topic, jsonEncode(payload));
+
+      // ✅ Temporarily disable UI updates until response is received
       setState(() {
-        scheduleMessage =
-            "✅ Schedule Set: ${DateFormat("yyyy-MM-dd HH:mm").format(selectedDateTime!)} - $selectedAction";
+        _isDataLoaded = false; // Disable UI updates
       });
 
-      print("🔥 Schedule successfully added to Firestore!");
-    } catch (e) {
-      print("❌ Error adding schedule: $e");
-      setState(() {
-        scheduleMessage = "❌ Error saving schedule.";
-      });
+      print(
+        "🔄 Waiting for response from ${widget.device.registrationId}/mobile...",
+      );
+    } else {
+      print("⚠️ MQTT Not Connected - Retrying...");
+      Future.delayed(Duration(seconds: 3), _publishMQTTMessage);
     }
   }
 
@@ -215,12 +198,6 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
       body: FutureBuilder(
         future: _loadFuture,
         builder: (context, snapshot) {
-          if (!_isDataLoaded) {
-            return Center(
-              child: Text("Loading device data..."),
-            ); // ✅ Shows fallback text
-          }
-
           return _buildDeviceControlUI(deviceController);
         },
       ),
@@ -244,7 +221,11 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                   () => Switch(
                     value: widget.device.state.value,
                     onChanged: (value) {
-                      deviceController.toggleDeviceState(widget.device);
+                      final deviceController = Get.find<DeviceController>();
+                      deviceController.toggleDeviceState(
+                        widget.device,
+                      ); // ✅ Call Firestore update
+                      _publishMQTTMessage();
                     },
                   ),
                 ),
@@ -267,12 +248,20 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                 min: 0,
                 max: 100,
                 divisions: 100,
+                label: "sliderValue: ${_currentValue.toInt()}",
+                onChangeStart: (value) {
+                  _isDragging = true; // ✅ Mark as dragging
+                },
                 onChanged: (value) {
                   setState(() {
                     _currentValue = value;
                   });
-
-                  _saveSliderValue(value);
+                },
+                onChangeEnd: (value) {
+                  _isDragging = false; // ✅ Mark as not dragging
+                  _saveSliderValue(
+                    value,
+                  ); // ✅ Save value only after user stops dragging
                 },
               ),
             ],
@@ -287,50 +276,10 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                   setState(() {
                     _currentColor = color;
                   });
-
-                  _saveSelectedColor(color);
+                  _publishMQTTMessage();
                 },
               ),
             ],
-
-            SizedBox(height: 20),
-            Text(
-              "📅 Schedule Device",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-
-            ElevatedButton(
-              onPressed: _pickDateTime,
-              child: Text(
-                selectedDateTime == null
-                    ? "Select Date & Time"
-                    : DateFormat("yyyy-MM-dd HH:mm").format(selectedDateTime!),
-              ),
-            ),
-
-            DropdownButton<String>(
-              value: selectedAction,
-              items:
-                  ["On", "Off"].map((String action) {
-                    return DropdownMenuItem<String>(
-                      value: action,
-                      child: Text(action),
-                    );
-                  }).toList(),
-              onChanged: (newValue) {
-                setState(() {
-                  selectedAction = newValue!;
-                });
-              },
-            ),
-
-            ElevatedButton(
-              onPressed: _saveSchedule,
-              child: Text("Save Schedule"),
-            ),
-
-            if (scheduleMessage != null)
-              Text(scheduleMessage!, style: TextStyle(color: Colors.green)),
           ],
         ),
       ),

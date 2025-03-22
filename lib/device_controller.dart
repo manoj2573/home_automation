@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
@@ -9,6 +11,7 @@ class DeviceController extends GetxController {
   var devices = <Device>[].obs;
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final FirebaseAuth auth = FirebaseAuth.instance;
+  bool _isDisposed = false;
 
   @override
   void onInit() {
@@ -16,6 +19,74 @@ class DeviceController extends GetxController {
     print("🔄 DeviceController Initialized");
     loadDevices();
     listenForScheduledActions();
+  }
+
+  void _onMqttMessageReceived(String topic, String message) {
+    print("📩 Received MQTT Message: Topic: $topic, Message: $message");
+
+    try {
+      Map<String, dynamic> data = jsonDecode(message);
+      String registrationId = topic.split('/')[0]; // Extract registrationId
+      String? deviceName = data["deviceName"]; // Extract deviceName
+
+      if (deviceName == null) {
+        print("⚠️ MQTT Message Missing 'deviceName' - Ignoring");
+        return;
+      }
+
+      // ✅ Find the correct device by BOTH `registrationId` and `deviceName`
+      int index = devices.indexWhere(
+        (device) =>
+            device.registrationId == registrationId &&
+            device.name == deviceName,
+      );
+
+      if (index != -1) {
+        devices[index].state.value = data["state"];
+        devices[index].sliderValue?.value =
+            data["sliderValue"]?.toDouble() ??
+            devices[index].sliderValue?.value ??
+            0;
+        devices[index].color = data["color"] ?? devices[index].color;
+
+        devices.refresh(); // ✅ Refresh Home UI
+        print("🔄 Home UI Updated for ${devices[index].name}");
+
+        // ✅ Now update Firestore with the new state
+        _updateFirestore(devices[index]);
+      } else {
+        print(
+          "⚠️ No matching device found for registrationId: $registrationId & deviceName: $deviceName",
+        );
+      }
+    } catch (e) {
+      print("❌ Error decoding MQTT message: $e");
+    }
+  }
+
+  void _updateFirestore(Device device) async {
+    String? uid = auth.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      await firestore
+          .collection("users")
+          .doc(uid)
+          .collection("devices")
+          .doc(device.name)
+          .set({
+            "name": device.name,
+            "type": device.type,
+            "state": device.state.value,
+            "sliderValue": device.sliderValue?.value ?? 0,
+            "color": device.color,
+            "registrationId": device.registrationId,
+          }, SetOptions(merge: true)); // ✅ Merge with existing data
+
+      print("✅ Firestore Updated: ${device.name} state saved.");
+    } catch (e) {
+      print("❌ Error updating Firestore: $e");
+    }
   }
 
   // ✅ Load Devices for the Logged-in User
@@ -32,7 +103,7 @@ class DeviceController extends GetxController {
           devices.value =
               snapshot.docs.map((doc) {
                 final data = doc.data();
-                return Device(
+                Device device = Device(
                   name: data["name"],
                   type: data["type"],
                   state: RxBool(data["state"]),
@@ -41,9 +112,20 @@ class DeviceController extends GetxController {
                   iconPath: data["iconPath"],
                   sliderValue: RxDouble(data["sliderValue"]?.toDouble() ?? 0),
                   color: data["color"] ?? "#FFFFFF",
+                  registrationId: data["registrationId"],
                 );
+
+                // ✅ Subscribe to MQTT updates for this device
+                MqttService.subscribe("${device.registrationId}/mobile");
+
+                return device;
               }).toList();
+
+          devices.refresh();
         });
+
+    // ✅ Set MQTT message handler after devices are loaded
+    MqttService.setMessageHandler(_onMqttMessageReceived);
   }
 
   // ✅ Add Device for the Logged-in User
@@ -65,6 +147,7 @@ class DeviceController extends GetxController {
           "iconPath": device.iconPath,
           "sliderValue": device.sliderValue?.value ?? 0,
           "color": device.color,
+          "registrationId": device.registrationId,
         });
 
     devices.add(device);
@@ -93,10 +176,14 @@ class DeviceController extends GetxController {
       "state": device.state.value,
       "pin": device.pin,
       "pin2": device.pin2,
+      "registartionId": device.registrationId,
     };
 
     if (MqttService.isConnected) {
-      MqttService.publishMessage(payload);
+      MqttService.publish(
+        "${device.registrationId}/device",
+        jsonEncode(payload),
+      );
     } else {
       print("❌ MQTT is not connected. Cannot send message.");
     }
@@ -183,16 +270,23 @@ class DeviceController extends GetxController {
               "state": newState,
               "pin1No": device.pin,
               "pin2No": device.pin2 ?? '',
+              "registartionId": device.registrationId,
             };
 
             if (MqttService.isConnected) {
-              MqttService.publishMessage(payload);
+              MqttService.publish(
+                "${device.registrationId}/mobile",
+                jsonEncode(payload),
+              );
               print("📡 MQTT Message Sent: $payload");
             } else {
               print("⚠️ MQTT Not Connected - Retrying...");
               Future.delayed(Duration(seconds: 3), () {
                 if (MqttService.isConnected) {
-                  MqttService.publishMessage(payload);
+                  MqttService.publish(
+                    "${device.registrationId}/mobile",
+                    jsonEncode(payload),
+                  );
                   print("📡 Retried MQTT Message Sent: $payload");
                 } else {
                   print("❌ Still Not Connected");

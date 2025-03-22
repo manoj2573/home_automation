@@ -8,7 +8,8 @@ class Device {
   String? pin2;
   String iconPath;
   RxDouble? sliderValue;
-  String color; // ✅ Ensure this exists in the class
+  String color;
+  String registrationId; // ✅ Added Registration ID
 
   Device({
     required this.name,
@@ -18,6 +19,7 @@ class Device {
     this.pin2,
     required this.iconPath,
     this.sliderValue,
-    this.color = "#FFFFFF", // ✅ Default color is white
+    this.color = "#FFFFFF",
+    required this.registrationId, // ✅ Make it required
   });
 }

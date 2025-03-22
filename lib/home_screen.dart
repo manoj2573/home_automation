@@ -4,46 +4,16 @@ import 'add_device_dialog.dart';
 import 'device_control_page.dart';
 import 'device_controller.dart';
 import 'auth_controller.dart';
-import 'mqtt_service.dart';
-import 'device.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // ✅ Import FirebaseAuth
-import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ Import Firestore
 
 class HomeScreen extends StatelessWidget {
-  void _listenToDeviceUpdates() {
-    String? uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    FirebaseFirestore.instance
-        .collection("users")
-        .doc(uid)
-        .collection("devices")
-        .snapshots()
-        .listen((snapshot) {
-          final DeviceController deviceController = Get.find();
-          deviceController.devices.value =
-              snapshot.docs.map((doc) {
-                final data = doc.data();
-                return Device(
-                  name: data["name"],
-                  type: data["type"],
-                  state: RxBool(data["state"]),
-                  pin: data["pin"],
-                  pin2: data["pin2"],
-                  iconPath: data["iconPath"],
-                  sliderValue: RxDouble(data["sliderValue"]?.toDouble() ?? 0),
-                  color: data["color"] ?? "#FFFFFF",
-                );
-              }).toList();
-        });
-  }
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    _listenToDeviceUpdates(); // ✅ Start listening to Firestore changes
-
     final DeviceController deviceController = Get.find();
     final AuthController authController = Get.find();
+
+    deviceController.loadDevices(); // ✅ Load & Listen for MQTT updates
 
     return Scaffold(
       appBar: AppBar(
@@ -96,7 +66,6 @@ class HomeScreen extends StatelessWidget {
                 ),
                 child: Stack(
                   children: [
-                    // ✅ Delete Button in Top Right Corner (Aligned Properly)
                     Positioned(
                       top: 4,
                       right: 4,
@@ -107,8 +76,6 @@ class HomeScreen extends StatelessWidget {
                         },
                       ),
                     ),
-
-                    // ✅ Device Details (Image, Name, State)
                     Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
