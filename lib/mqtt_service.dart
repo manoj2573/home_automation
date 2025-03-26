@@ -70,28 +70,26 @@ class MqttService {
     };
   }
 
-  // ✅ Subscribe to a topic
-  static void subscribe(String topic) {
+  static void publish(String deviceTopic, String message) {
     if (!isConnected) {
-      print("⚠️ MQTT not connected. Cannot subscribe to $topic.");
+      print("⚠️ MQTT not connected. Cannot publish to $deviceTopic");
       return;
     }
-    client.subscribe(topic, MqttQos.atMostOnce);
-    print("✅ Subscribed to: $topic");
-  }
-
-  // ✅ Publish a message to a topic
-  static void publish(String topic, String message) {
-    if (!isConnected) {
-      print("⚠️ MQTT not connected. Cannot publish to $topic.");
-      return;
-    }
-
+    String topic = "$deviceTopic";
     final builder = MqttClientPayloadBuilder();
     builder.addString(message);
-
     client.publishMessage(topic, MqttQos.atMostOnce, builder.payload!);
     print("📤 Published to $topic: $message");
+  }
+
+  static void subscribe(String deviceTopic) {
+    if (!isConnected) {
+      print("⚠️ MQTT not connected. Cannot subscribe to $deviceTopic");
+      return;
+    }
+    String topic = "$deviceTopic";
+    client.subscribe(topic, MqttQos.atMostOnce);
+    print("✅ Subscribed to: $topic");
   }
 
   // ✅ Unsubscribe from a topic
@@ -107,6 +105,7 @@ class MqttService {
   // ✅ Set message handler for incoming MQTT messages
   static void setMessageHandler(Function(String, String) handler) {
     messageHandler = handler;
+    print("✅ MQTT Message Handler Set");
   }
 
   static Future<SecurityContext> getSecurityContext() async {

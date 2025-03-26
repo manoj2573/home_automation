@@ -16,21 +16,26 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
   final TextEditingController registrationIdController =
       TextEditingController();
   final TextEditingController pairingCodeController = TextEditingController();
+  String selectedDeviceId = "";
+  String selectedVersionCode = "";
+  List<Map<String, dynamic>> selectedDevices = [];
+
   bool isAdding = false;
   bool isPairing = false;
+  bool isStatusConfirmed = false; // ✅ Track status confirmation
 
-  String selectedModel = "v.1"; // ✅ Default Model Code
+  String selectedModel = "v.1";
 
   @override
   void initState() {
     super.initState();
-    MqttService.subscribe("discovery/+");
+    MqttService.subscribe("discovery/+"); // ✅ Subscribe to discovery/+
     MqttService.setMessageHandler(_onMqttMessageReceived);
   }
 
   @override
   void dispose() {
-    MqttService.unsubscribe("discovery/+");
+    MqttService.unsubscribe("discovery/+"); // ✅ Unsubscribe from discovery/+
     super.dispose();
   }
 
@@ -44,21 +49,39 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
         setState(() {
           registrationIdController.text = data["registrationId"];
         });
-        print("✅ Registration ID received: ${data["registrationId"]}");
-      }
 
-      // ✅ Handle pairing confirmation
-      if (topic == "discovery/${registrationIdController.text}") {
+        // ✅ Check for status confirmation
         if (data.containsKey("status") && data["status"] == "confirmed") {
-          print("✅ Device paired successfully!");
-          Get.snackbar("Success", "Device paired successfully");
-          _createDevicesBasedOnModel();
-        } else {
-          print("❌ Pairing failed.");
-          Get.snackbar("Error", "Pairing failed");
           setState(() {
-            isPairing = false;
+            isStatusConfirmed = true; // ✅ Mark status as confirmed
           });
+
+          // ✅ Only create devices after status is confirmed
+          if (data.containsKey("versionCode") && data.containsKey("devices")) {
+            selectedVersionCode = data["versionCode"];
+
+            List<Map<String, dynamic>> devices =
+                List<Map<String, dynamic>>.from(data["devices"]);
+            setState(() {
+              selectedDevices = devices;
+            });
+
+            print(
+              "✅ Version Code: $selectedVersionCode, Devices: $selectedDevices",
+            );
+
+            // ✅ Create devices after status confirmation
+            _createDevicesBasedOnModel();
+
+            // ✅ Close the dialog and show a snackbar
+            Get.back(); // Close the dialog
+            Get.snackbar(
+              "Success",
+              "Pairing successful, devices created",
+              snackPosition: SnackPosition.BOTTOM,
+              duration: Duration(seconds: 3),
+            );
+          }
         }
       }
     } catch (e) {
@@ -73,6 +96,7 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
         isPairing = true;
       });
 
+      // ✅ Publish to discovery/registrationId (without /mobile)
       MqttService.publish(
         "discovery/${registrationIdController.text}",
         jsonEncode({"pairingCode": pairingCodeController.text}),
@@ -87,188 +111,54 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
 
   void _createDevicesBasedOnModel() {
     final deviceController = Get.find<DeviceController>();
-    String registrationId = registrationIdController.text.trim();
 
-    if (registrationId.isEmpty) {
-      Get.snackbar("Error", "No Registration ID found. Please pair first.");
+    if (selectedDevices.isEmpty || selectedVersionCode.isEmpty) {
+      Get.snackbar(
+        "Error",
+        "No Device IDs or Version Code found. Please pair first.",
+      );
       return;
     }
 
     List<Device> devices = [];
 
-    // ✅ Device configurations based on model selection
-    Map<String, List<Device>> modelDevices = {
-      "v.1": [
-        Device(
-          name: "Switch 1",
-          type: "On/Off",
-          state: RxBool(false),
-          pin: "1",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Switch 2",
-          type: "On/Off",
-          state: RxBool(false),
-          pin: "2",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Switch 3",
-          type: "On/Off",
-          state: RxBool(false),
-          pin: "3",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Fan",
-          type: "Fan",
-          state: RxBool(false),
-          pin: "4",
-          iconPath: "assets/fan.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Dimmable Light",
-          type: "Dimmable light",
-          state: RxBool(false),
-          pin: "5",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-      ],
-      "v.2": [
-        Device(
-          name: "Switch 1",
-          type: "On/Off",
-          state: RxBool(false),
-          pin: "1",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Switch 2",
-          type: "On/Off",
-          state: RxBool(false),
-          pin: "2",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Fan 1",
-          type: "Fan",
-          state: RxBool(false),
-          pin: "3",
-          iconPath: "assets/fan.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Fan 2",
-          type: "Fan",
-          state: RxBool(false),
-          pin: "4",
-          iconPath: "assets/fan.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "RGB Light",
-          type: "RGB",
-          state: RxBool(false),
-          pin: "5",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-      ],
-      "v.3": [
-        Device(
-          name: "Switch",
-          type: "On/Off",
-          state: RxBool(false),
-          pin: "1",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Curtain",
-          type: "Curtain",
-          state: RxBool(false),
-          pin: "2",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "RGB Light",
-          type: "RGB",
-          state: RxBool(false),
-          pin: "3",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Fan",
-          type: "Fan",
-          state: RxBool(false),
-          pin: "4",
-          iconPath: "assets/fan.png",
-          registrationId: registrationId,
-        ),
-      ],
-      "v.4": [
-        Device(
-          name: "Switch 1",
-          type: "On/Off",
-          state: RxBool(false),
-          pin: "1",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Switch 2",
-          type: "On/Off",
-          state: RxBool(false),
-          pin: "2",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Switch 3",
-          type: "On/Off",
-          state: RxBool(false),
-          pin: "3",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Switch 4",
-          type: "On/Off",
-          state: RxBool(false),
-          pin: "4",
-          iconPath: "assets/light-bulb.png",
-          registrationId: registrationId,
-        ),
-        Device(
-          name: "Fan",
-          type: "Fan",
-          state: RxBool(false),
-          pin: "5",
-          iconPath: "assets/fan.png",
-          registrationId: registrationId,
-        ),
-      ],
-    };
+    for (var device in selectedDevices) {
+      String deviceId = device["deviceId"];
+      String type = device["type"];
 
-    devices = modelDevices[selectedModel] ?? [];
+      String defaultName =
+          type == "On/Off"
+              ? "Switch"
+              : type == "Fan"
+              ? "Ceiling Fan"
+              : type == "Dimmable light"
+              ? "Smart Light"
+              : type == "RGB"
+              ? "RGB light"
+              : type == "Curtain"
+              ? "curtains"
+              : "Device $deviceId";
+
+      devices.add(
+        Device(
+          name: defaultName,
+          type: type,
+          state: RxBool(false),
+          pin: 'N/A',
+          iconPath: "assets/light-bulb.png",
+          deviceId: deviceId,
+          registrationId: registrationIdController.text,
+        ),
+      );
+    }
 
     for (Device device in devices) {
       deviceController.addDevice(device);
     }
 
-    print("✅ Created ${devices.length} devices for model: $selectedModel");
-    Get.snackbar("Success", "Devices added successfully!");
-    Get.back();
+    print(
+      "✅ Created ${devices.length} devices for Registration ID: ${registrationIdController.text}",
+    );
   }
 
   @override
@@ -305,7 +195,12 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Get.back(), child: Text("Cancel")),
+        TextButton(
+          onPressed: () {
+            Get.back(); // ✅ Close dialog without creating devices
+          },
+          child: Text("Cancel"),
+        ),
         ElevatedButton(
           onPressed: _sendPairingRequest,
           child:

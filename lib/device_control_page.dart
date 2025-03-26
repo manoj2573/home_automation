@@ -1,8 +1,9 @@
-import 'dart:convert'; // ✅ Import for jsonEncode & jsonDecode
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:home_automation/schedule_dialog.dart';
 import 'package:intl/intl.dart';
 import 'device_controller.dart';
 import 'mqtt_service.dart';
@@ -31,13 +32,27 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
   String? scheduleMessage;
 
   DateTime? selectedDateTime;
-  String selectedAction = "On"; // ✅ Default to "On"
+  String selectedAction = "On";
 
   @override
   void initState() {
     super.initState();
-    _listenToDeviceUpdates(); // ✅ Start Firestore listener
-    _subscribeToMqtt(); // ✅ Start MQTT listener
+    _listenToDeviceUpdates();
+    _subscribeToMqtt();
+  }
+
+  void _subscribeToMqtt() {
+    String topic = "${widget.device.deviceId}/mobile"; // ✅ Correct topic
+
+    if (MqttService.isConnected) {
+      MqttService.subscribe(topic);
+      print("✅ Subscribed to MQTT topic: $topic in DeviceControlPage");
+    } else {
+      print("⚠️ MQTT Not Connected - Retrying subscription...");
+      Future.delayed(Duration(seconds: 3), _subscribeToMqtt);
+    }
+
+    MqttService.setMessageHandler(_onMqttMessageReceived);
   }
 
   void _listenToDeviceUpdates() {
@@ -48,7 +63,7 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
         .collection("users")
         .doc(uid)
         .collection("devices")
-        .doc(widget.device.name)
+        .doc(widget.device.deviceId)
         .snapshots()
         .listen((snapshot) {
           if (snapshot.exists && snapshot.data() != null) {
@@ -64,62 +79,76 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
         });
   }
 
-  // ✅ Subscribe to MQTT topic when page opens
-  void _subscribeToMqtt() {
-    String topic = "${widget.device.registrationId}/mobile";
-
-    if (MqttService.isConnected) {
-      MqttService.subscribe(topic);
-      print("✅ Subscribed to MQTT topic: $topic in DeviceControlPage");
-    } else {
-      print("⚠️ MQTT Not Connected - Retrying subscription...");
-      Future.delayed(Duration(seconds: 3), _subscribeToMqtt);
-    }
-
-    MqttService.setMessageHandler(_onMqttMessageReceived);
-  }
-
-  // ✅ Handle MQTT messages from registrationId/mobile
   void _onMqttMessageReceived(String topic, String message) {
-    print(
-      "📩 Received MQTT Message in DeviceControlPage: Topic: $topic, Message: $message",
-    );
+    print("📩 Received MQTT Message: Topic: $topic, Message: $message");
 
     try {
       Map<String, dynamic> data = jsonDecode(message);
-      String registrationId = topic.split('/')[0]; // Extract registrationId
-      String? deviceName = data["deviceName"]; // Extract deviceName
 
-      if (deviceName == null || deviceName != widget.device.name) {
-        print("⚠️ MQTT Message Ignored: No 'deviceName' or mismatch");
+      if (!data.containsKey("deviceId") || !data.containsKey("state")) {
+        print("⚠️ Invalid message format. Ignoring...");
         return;
       }
 
-      // ✅ Extract brightness value (same for all devices)
-      double? sliderValue = data["sliderValue"]?.toDouble();
+      String deviceId = data["deviceId"];
+      bool newState = data["state"];
+      double? newSliderValue =
+          data.containsKey("sliderValue")
+              ? data["sliderValue"]?.toDouble()
+              : null;
+      String? newColor = data["color"];
 
-      setState(() {
-        widget.device.state.value = data["state"];
+      // ✅ Find the device in the device list
+      DeviceController deviceController = Get.find();
+      int index = deviceController.devices.indexWhere(
+        (d) => d.deviceId == deviceId,
+      );
 
-        // ✅ Only update `_currentValue` if the user is NOT dragging the slider
-        if (!_isDragging && sliderValue != null) {
-          _currentValue = sliderValue;
-        }
+      if (index == -1) {
+        print("⚠️ Device not found: $deviceId. Skipping update.");
+        return;
+      }
 
-        _currentColor = _hexToColor(
-          data["color"] ?? _colorToHex(_currentColor),
-        );
-      });
+      Device device = deviceController.devices[index];
+
+      // ✅ Update the UI with new state, slider value, and color
+      device.state.value = newState;
+      if (newSliderValue != null && device.sliderValue != null) {
+        device.sliderValue!.value = newSliderValue;
+      }
+      if (newColor != null) {
+        device.color = newColor;
+      }
+
+      deviceController.devices.refresh();
 
       print(
-        "🔄 UI Updated in DeviceControlPage: ${widget.device.name}, Brightness: $_currentValue",
+        "🔄 UI Updated for ${device.name}: State = ${newState}, Slider = ${newSliderValue}, Color = ${newColor}",
       );
+
+      // ✅ Update Firestore
+      String? uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        Map<String, dynamic> updateData = {"state": newState};
+        if (newSliderValue != null) updateData["sliderValue"] = newSliderValue;
+        if (newColor != null) updateData["color"] = newColor;
+
+        FirebaseFirestore.instance
+            .collection("users")
+            .doc(uid)
+            .collection("devices")
+            .doc(deviceId)
+            .update(updateData)
+            .then((_) => print("✅ Firestore Updated for $deviceId"))
+            .catchError((error) => print("❌ Firestore Update Failed: $error"));
+      }
+      _updateFirestore;
     } catch (e) {
-      print("❌ Error decoding MQTT message in DeviceControlPage: $e");
+      print("❌ Error decoding MQTT message: $e");
     }
   }
 
-  void _saveSliderValue(double value) async {
+  void _updateFirestore(Map<String, dynamic> data) async {
     String? uid = auth.currentUser?.uid;
     if (uid == null) return;
 
@@ -128,46 +157,116 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
           .collection("users")
           .doc(uid)
           .collection("devices")
-          .doc(widget.device.name)
+          .doc(widget.device.deviceId)
           .update({
-            "sliderValue": value, // ✅ Save slider value
+            "state": data["state"],
+            "sliderValue": data["sliderValue"]?.toDouble() ?? _currentValue,
+            "color": data["color"] ?? _colorToHex(_currentColor),
           });
 
-      print("✅ Firestore Updated: ${widget.device.name} sliderValue = $value");
-
-      _publishMQTTMessage();
+      print("✅ Firestore Updated for ${widget.device.name}");
     } catch (e) {
-      print("❌ Error updating Firestore sliderValue: $e");
+      print("❌ Error updating Firestore: $e");
     }
   }
 
+  void _saveSelectedColor(Color color) async {
+    setState(() {
+      _currentColor = color; // ✅ Update UI
+    });
+
+    String? uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    String hexColor = _colorToHex(color); // ✅ Convert color to HEX format
+
+    // ✅ Update Firestore
+    await FirebaseFirestore.instance
+        .collection("users")
+        .doc(uid)
+        .collection("devices")
+        .doc(widget.device.deviceId)
+        .update({"color": hexColor});
+
+    // ✅ Publish MQTT message
+    _publishMQTTMessage();
+  }
+
   void _publishMQTTMessage() {
-    String topic = "${widget.device.registrationId}/device";
+    String topic = "${widget.device.deviceId}/device";
     Map<String, dynamic> payload = {
+      'deviceId': widget.device.deviceId,
       'deviceName': widget.device.name,
       'deviceType': widget.device.type,
       'state': widget.device.state.value,
       'pin1No': widget.device.pin,
       'pin2No': widget.device.pin2 ?? '',
-      'sliderValue': _currentValue, // Ensure this is consistent
+      'sliderValue': _currentValue,
       'color': _colorToHex(_currentColor),
+      'registrationId': widget.device.registrationId,
     };
 
     if (MqttService.isConnected) {
       print("📤 Publishing to $topic: $payload");
       MqttService.publish(topic, jsonEncode(payload));
 
-      // ✅ Temporarily disable UI updates until response is received
       setState(() {
-        _isDataLoaded = false; // Disable UI updates
+        _isDataLoaded = false;
       });
 
-      print(
-        "🔄 Waiting for response from ${widget.device.registrationId}/mobile...",
-      );
+      print("🔄 Waiting for response from ${widget.device.deviceId}/mobile...");
     } else {
       print("⚠️ MQTT Not Connected - Retrying...");
       Future.delayed(Duration(seconds: 3), _publishMQTTMessage);
+    }
+  }
+
+  void _onSliderChanged(double value) {
+    setState(() {
+      _currentValue = value;
+
+      if (value == 0) {
+        // ✅ If slider is 0, turn off the device
+        widget.device.state.value = false;
+      } else {
+        // ✅ If slider is >0, turn on the device
+        widget.device.state.value = true;
+      }
+    });
+
+    // ✅ Update Firestore
+    String? uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      FirebaseFirestore.instance
+          .collection("users")
+          .doc(uid)
+          .collection("devices")
+          .doc(widget.device.deviceId)
+          .update({
+            "state": widget.device.state.value,
+            "sliderValue": _currentValue,
+          });
+    }
+
+    // ✅ Publish MQTT message
+    Map<String, dynamic> payload = {
+      "deviceId": widget.device.deviceId,
+      "deviceName": widget.device.name,
+      "deviceType": widget.device.type,
+      "state": widget.device.state.value,
+      "sliderValue": _currentValue,
+      "color": _colorToHex(_currentColor),
+      "registrationId": widget.device.registrationId,
+    };
+
+    if (MqttService.isConnected) {
+      MqttService.publish(
+        "${widget.device.deviceId}/device",
+        jsonEncode(payload),
+      );
+      print("📡 Published to ${widget.device.deviceId}/device: $payload");
+    } else {
+      print("❌ MQTT is not connected. Cannot send message.");
     }
   }
 
@@ -184,17 +283,7 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
     final DeviceController deviceController = Get.find();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.device.name} Controls'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: () {
-              Get.to(() => SettingsPage(device: widget.device));
-            },
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text('${widget.device.name} Controls')),
       body: FutureBuilder(
         future: _loadFuture,
         builder: (context, snapshot) {
@@ -209,16 +298,116 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
       padding: EdgeInsets.all(16),
       child: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Row(
-              children: [
-                Text(
-                  '${widget.device.name} is ${widget.device.state.value ? 'On' : 'Off'}',
-                ),
-                Spacer(),
-                Obx(
-                  () => Switch(
+            Text(
+              '${widget.device.name} is ${widget.device.state.value ? 'On' : 'Off'}',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
+            ),
+            if (widget.device.type == "On/Off")
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      // ✅ Toggle device state & send MQTT message
+                      deviceController.toggleDeviceState(widget.device);
+                    },
+                    child: Card(
+                      color:
+                          widget.device.state.value
+                              ? Colors.green.shade200
+                              : Colors.white,
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 30,
+                              horizontal: 20,
+                            ),
+                            child: Image.asset(
+                              widget.device.iconPath,
+                              width: 220,
+                              height: 220,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 70),
+                ],
+              ),
+
+            if (widget.device.type == 'Dimmable light' ||
+                widget.device.type == 'Fan' ||
+                widget.device.type == 'Curtain') ...[
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      // ✅ Toggle device state & send MQTT message
+                      deviceController.toggleDeviceState(widget.device);
+                    },
+                    child: Card(
+                      color:
+                          widget.device.state.value
+                              ? Colors.green.shade200
+                              : Colors.white,
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 30,
+                              horizontal: 20,
+                            ),
+                            child: Image.asset(
+                              widget.device.iconPath,
+                              width: 220,
+                              height: 220,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  Text(
+                    widget.device.type == 'Fan'
+                        ? 'Adjust Speed'
+                        : widget.device.type == 'Curtain'
+                        ? 'Adjust Position'
+                        : 'Adjust Brightness',
+                  ),
+                  Slider(
+                    value: _currentValue,
+                    min: 0,
+                    max: 100,
+                    divisions: 100,
+                    label: "${_currentValue.toInt()}",
+                    onChanged: _onSliderChanged, // ✅ Pass function directly
+                  ),
+                ],
+              ),
+            ],
+
+            if (widget.device.type == 'RGB') ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Text('Pick Color', style: TextStyle(fontSize: 15)),
+                  Switch(
                     value: widget.device.state.value,
                     onChanged: (value) {
                       final deviceController = Get.find<DeviceController>();
@@ -228,58 +417,68 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                       _publishMQTTMessage();
                     },
                   ),
+                ],
+              ),
+              SizedBox(height: 10),
+              ColorPicker(
+                colorPickerWidth: 220,
+                pickerColor: _currentColor,
+                onColorChanged: (color) {
+                  _saveSelectedColor(color); // ✅ Save color when changed
+                },
+              ),
+            ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                InkWell(
+                  onTap: () {
+                    Get.to(() => SettingsPage(device: widget.device));
+                  },
+
+                  child: Card(
+                    margin: EdgeInsets.all(10),
+                    elevation: 4,
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.settings,
+                          size: 80,
+                          color: const Color.fromARGB(255, 101, 74, 155),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    Get.to(() => ScheduleDialogPage(device: widget.device));
+                  },
+
+                  child: Card(
+                    margin: EdgeInsets.all(10),
+                    elevation: 4,
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.calendar_month,
+                          size: 80,
+                          color: const Color.fromARGB(255, 101, 74, 155),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
-
-            // ✅ Sliders for Fan, Curtain, and Dimmable Light
-            if (widget.device.type == 'Dimmable light' ||
-                widget.device.type == 'Fan' ||
-                widget.device.type == 'Curtain') ...[
-              Text(
-                widget.device.type == 'Fan'
-                    ? 'Adjust Speed'
-                    : widget.device.type == 'Curtain'
-                    ? 'Adjust Position'
-                    : 'Adjust Brightness',
-              ),
-              Slider(
-                value: _currentValue,
-                min: 0,
-                max: 100,
-                divisions: 100,
-                label: "sliderValue: ${_currentValue.toInt()}",
-                onChangeStart: (value) {
-                  _isDragging = true; // ✅ Mark as dragging
-                },
-                onChanged: (value) {
-                  setState(() {
-                    _currentValue = value;
-                  });
-                },
-                onChangeEnd: (value) {
-                  _isDragging = false; // ✅ Mark as not dragging
-                  _saveSliderValue(
-                    value,
-                  ); // ✅ Save value only after user stops dragging
-                },
-              ),
-            ],
-
-            // ✅ RGB Color Picker
-            if (widget.device.type == 'RGB') ...[
-              Text('Pick Color'),
-              SizedBox(height: 10),
-              ColorPicker(
-                pickerColor: _currentColor,
-                onColorChanged: (color) {
-                  setState(() {
-                    _currentColor = color;
-                  });
-                  _publishMQTTMessage();
-                },
-              ),
-            ],
           ],
         ),
       ),

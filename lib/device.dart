@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 
 class Device {
+  String deviceId;
   String name;
   String type;
   RxBool state;
@@ -12,6 +13,7 @@ class Device {
   String registrationId; // ✅ Added Registration ID
 
   Device({
+    required this.deviceId,
     required this.name,
     required this.type,
     required this.state,
