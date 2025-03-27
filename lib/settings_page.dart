@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:home_automation/home_screen.dart';
 import 'device.dart';
 import 'device_controller.dart';
 
@@ -14,28 +15,37 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late TextEditingController _nameController;
+  late TextEditingController _roomController;
   String? _selectedIconPath;
+  final DeviceController deviceController = Get.find();
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.device.name);
+    _roomController = TextEditingController(text: widget.device.roomName ?? "");
     _selectedIconPath = widget.device.iconPath;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _roomController.dispose();
     super.dispose();
   }
 
   void _saveChanges() {
-    final deviceController = Get.find<DeviceController>();
-
     if (_nameController.text != widget.device.name) {
       deviceController.updateDeviceName(
         widget.device.deviceId,
         _nameController.text,
+      );
+    }
+
+    if (_roomController.text != widget.device.roomName) {
+      deviceController.updateDeviceRoom(
+        widget.device.deviceId,
+        _roomController.text,
       );
     }
 
@@ -103,6 +113,7 @@ class _SettingsPageState extends State<SettingsPage> {
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
+            // Device Name
             TextField(
               controller: _nameController,
               decoration: InputDecoration(
@@ -111,6 +122,18 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             SizedBox(height: 20),
+
+            // Room Name
+            TextField(
+              controller: _roomController,
+              decoration: InputDecoration(
+                labelText: 'Room Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            SizedBox(height: 20),
+
+            // Device Icon Selection
             GestureDetector(
               onTap: _showIconSelectionDialog,
               child: Card(
@@ -123,7 +146,6 @@ class _SettingsPageState extends State<SettingsPage> {
                         style: TextStyle(fontSize: 18),
                       ),
                     ),
-
                     Image.asset(
                       _selectedIconPath ?? widget.device.iconPath,
                       width: 60,
@@ -132,6 +154,44 @@ class _SettingsPageState extends State<SettingsPage> {
                   ],
                 ),
               ),
+            ),
+            SizedBox(height: 20),
+
+            // Delete Button
+            TextButton.icon(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder:
+                      (context) => AlertDialog(
+                        title: Text(
+                          "Delete Alert",
+                          style: TextStyle(fontSize: 20),
+                        ),
+                        content: Text(
+                          "Are you sure you want to delete this device?",
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Get.back(),
+                            child: Text("Cancel"),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              deviceController.removeDevice(widget.device);
+                              Get.to(() => HomeScreen());
+                            },
+                            child: Text("Delete"),
+                          ),
+                        ],
+                      ),
+                );
+              },
+              label: Text(
+                "Delete device",
+                style: TextStyle(fontSize: 20, color: Colors.black),
+              ),
+              icon: Icon(Icons.delete_forever, size: 40, color: Colors.red),
             ),
           ],
         ),

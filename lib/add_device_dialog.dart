@@ -16,26 +16,28 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
   final TextEditingController registrationIdController =
       TextEditingController();
   final TextEditingController pairingCodeController = TextEditingController();
+  final TextEditingController roomNameController =
+      TextEditingController(); // ✅ New Room Name Controller
   String selectedDeviceId = "";
   String selectedVersionCode = "";
   List<Map<String, dynamic>> selectedDevices = [];
 
   bool isAdding = false;
   bool isPairing = false;
-  bool isStatusConfirmed = false; // ✅ Track status confirmation
+  bool isStatusConfirmed = false;
 
   String selectedModel = "v.1";
 
   @override
   void initState() {
     super.initState();
-    MqttService.subscribe("discovery/+"); // ✅ Subscribe to discovery/+
+    MqttService.subscribe("discovery/+"); // ✅ Subscribe to MQTT
     MqttService.setMessageHandler(_onMqttMessageReceived);
   }
 
   @override
   void dispose() {
-    MqttService.unsubscribe("discovery/+"); // ✅ Unsubscribe from discovery/+
+    MqttService.unsubscribe("discovery/+");
     super.dispose();
   }
 
@@ -50,21 +52,14 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
           registrationIdController.text = data["registrationId"];
         });
 
-        // ✅ Check for status confirmation
         if (data.containsKey("status") && data["status"] == "confirmed") {
           setState(() {
-            isStatusConfirmed = true; // ✅ Mark status as confirmed
+            isStatusConfirmed = true;
           });
 
-          // ✅ Only create devices after status is confirmed
           if (data.containsKey("versionCode") && data.containsKey("devices")) {
             selectedVersionCode = data["versionCode"];
-
-            List<Map<String, dynamic>> devices =
-                List<Map<String, dynamic>>.from(data["devices"]);
-            setState(() {
-              selectedDevices = devices;
-            });
+            selectedDevices = List<Map<String, dynamic>>.from(data["devices"]);
 
             print(
               "✅ Version Code: $selectedVersionCode, Devices: $selectedDevices",
@@ -73,7 +68,6 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
             // ✅ Create devices after status confirmation
             _createDevicesBasedOnModel();
 
-            // ✅ Close the dialog and show a snackbar
             Get.back(); // Close the dialog
             Get.snackbar(
               "Success",
@@ -96,7 +90,6 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
         isPairing = true;
       });
 
-      // ✅ Publish to discovery/registrationId (without /mobile)
       MqttService.publish(
         "discovery/${registrationIdController.text}",
         jsonEncode({"pairingCode": pairingCodeController.text}),
@@ -120,6 +113,11 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
       return;
     }
 
+    if (roomNameController.text.isEmpty) {
+      Get.snackbar("Error", "Please enter a Room Name.");
+      return;
+    }
+
     List<Device> devices = [];
 
     for (var device in selectedDevices) {
@@ -134,9 +132,9 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
               : type == "Dimmable light"
               ? "Smart Light"
               : type == "RGB"
-              ? "RGB light"
+              ? "RGB Light"
               : type == "Curtain"
-              ? "curtains"
+              ? "Curtains"
               : "Device $deviceId";
 
       devices.add(
@@ -148,6 +146,7 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
           iconPath: "assets/light-bulb.png",
           deviceId: deviceId,
           registrationId: registrationIdController.text,
+          roomName: roomNameController.text, // ✅ Assign the room name
         ),
       );
     }
@@ -157,7 +156,7 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
     }
 
     print(
-      "✅ Created ${devices.length} devices for Registration ID: ${registrationIdController.text}",
+      "✅ Created ${devices.length} devices in room: ${roomNameController.text}",
     );
   }
 
@@ -192,12 +191,16 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
             controller: pairingCodeController,
             decoration: InputDecoration(labelText: "Pairing Code"),
           ),
+          TextField(
+            controller: roomNameController,
+            decoration: InputDecoration(labelText: "Room Name"), // ✅ New Field
+          ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () {
-            Get.back(); // ✅ Close dialog without creating devices
+            Get.back();
           },
           child: Text("Cancel"),
         ),

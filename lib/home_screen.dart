@@ -19,7 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final DeviceController deviceController = Get.find();
     final AuthController authController = Get.find();
 
-    deviceController.loadDevices(); // ✅ Ensure devices are loaded
+    deviceController.loadDevices(); // ✅ Load devices on startup
 
     return Scaffold(
       appBar: AppBar(
@@ -47,37 +47,53 @@ class _HomeScreenState extends State<HomeScreen> {
           return Center(child: Text("No devices found"));
         }
 
-        // ✅ Group devices by registrationId
+        // ✅ Group devices by `roomName`
         Map<String, List<Device>> groupedDevices = {};
         for (var device in deviceController.devices) {
-          groupedDevices
-              .putIfAbsent(device.registrationId, () => [])
-              .add(device);
+          groupedDevices.putIfAbsent(device.roomName, () => []).add(device);
         }
 
         return ListView(
           padding: EdgeInsets.all(8),
           children:
               groupedDevices.entries.map((entry) {
-                String registrationId = entry.key;
+                String roomName = entry.key;
                 List<Device> devices = entry.value;
+
+                // ✅ Check if all devices in the room are ON
+                bool isRoomOn = devices.every((device) => device.state.value);
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ✅ Registration ID Header
+                    // ✅ Room Name Header with Switch
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Text(
-                        "Registration ID: $registrationId",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            roomName, // ✅ Display Room Name
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                          Switch(
+                            value: isRoomOn,
+                            onChanged: (value) {
+                              _toggleRoomDevices(
+                                deviceController,
+                                devices,
+                                value,
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     ),
 
-                    // ✅ Device Grid for this Registration ID
+                    // ✅ Device Grid for this Room
                     GridView.builder(
                       shrinkWrap: true,
                       physics: NeverScrollableScrollPhysics(),
@@ -110,40 +126,23 @@ class _HomeScreenState extends State<HomeScreen> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Stack(
-                              children: [
-                                Positioned(
-                                  top: 4,
-                                  right: 4,
-                                  child: IconButton(
-                                    icon: Icon(
-                                      Icons.delete_outline,
-                                      color: Colors.black,
-                                    ),
-                                    onPressed: () {
-                                      deviceController.removeDevice(device);
-                                    },
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Image.asset(
+                                    device.iconPath,
+                                    width: 40,
+                                    height: 40,
                                   ),
-                                ),
-                                Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Image.asset(
-                                        device.iconPath,
-                                        width: 40,
-                                        height: 40,
-                                      ),
-                                      SizedBox(height: 10),
-                                      Text(
-                                        device.name,
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      Text(device.state.value ? 'On' : 'Off'),
-                                    ],
+                                  SizedBox(height: 10),
+                                  Text(
+                                    device.name,
+                                    textAlign: TextAlign.center,
                                   ),
-                                ),
-                              ],
+                                  Text(device.state.value ? 'On' : 'Off'),
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -155,5 +154,18 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }),
     );
+  }
+
+  // ✅ Function to Toggle All Devices in a Room
+  void _toggleRoomDevices(
+    DeviceController deviceController,
+    List<Device> devices,
+    bool turnOn,
+  ) {
+    for (var device in devices) {
+      if (device.state.value != turnOn) {
+        deviceController.toggleDeviceState(device); // ✅ Use existing function
+      }
+    }
   }
 }

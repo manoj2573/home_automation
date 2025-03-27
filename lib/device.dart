@@ -11,6 +11,7 @@ class Device {
   RxDouble? sliderValue;
   String color;
   String registrationId; // ✅ Added Registration ID
+  String roomName;
 
   Device({
     required this.deviceId,
@@ -23,5 +24,6 @@ class Device {
     this.sliderValue,
     this.color = "#FFFFFF",
     required this.registrationId, // ✅ Make it required
+    required this.roomName,
   });
 }

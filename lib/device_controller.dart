@@ -80,6 +80,7 @@ class DeviceController extends GetxController {
             "sliderValue": device.sliderValue?.value ?? 0,
             "color": device.color,
             "registrationId": device.registrationId,
+            "roomName": device.roomName,
           }, SetOptions(merge: true));
 
       print(
@@ -114,6 +115,7 @@ class DeviceController extends GetxController {
                   sliderValue: RxDouble(data["sliderValue"]?.toDouble() ?? 0),
                   color: data["color"] ?? "#FFFFFF",
                   registrationId: data["registrationId"],
+                  roomName: data["roomName"] ?? "Unknown Room",
                 );
               }).toList();
 
@@ -144,6 +146,7 @@ class DeviceController extends GetxController {
           "sliderValue": device.sliderValue?.value ?? 0,
           "color": device.color,
           "registrationId": device.registrationId,
+          "roomName": device.roomName,
         });
 
     devices.add(device);
@@ -183,6 +186,7 @@ class DeviceController extends GetxController {
       "sliderValue": device.sliderValue?.value ?? 0.0,
       'color': device.color,
       "registrationId": device.registrationId,
+      "roomName": device.roomName,
     };
 
     if (MqttService.isConnected) {
@@ -243,5 +247,28 @@ class DeviceController extends GetxController {
         .doc(device.deviceId)
         .delete();
     devices.remove(device);
+  }
+
+  void updateDeviceRoom(String deviceId, String newRoom) async {
+    String? uid = auth.currentUser?.uid;
+    if (uid == null) return;
+    int index = devices.indexWhere((d) => d.deviceId == deviceId);
+    if (index != -1) {
+      devices[index].roomName = newRoom;
+      devices.refresh();
+
+      await firestore
+          .collection("users")
+          .doc(uid)
+          .collection("devices")
+          .doc(deviceId)
+          .update({'roomName': newRoom})
+          .then((_) {
+            print("Device moved to new room: $newRoom");
+          })
+          .catchError((error) {
+            print("Failed to update room: $error");
+          });
+    }
   }
 }
