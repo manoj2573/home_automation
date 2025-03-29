@@ -77,6 +77,17 @@ class _SettingsPageState extends State<SettingsPage> {
                   _iconOption('assets/geyser.png'),
                   _iconOption('assets/fan.png'),
                   _iconOption('assets/refrigerator.png'),
+                  _iconOption('assets/led-strip.png'),
+                  _iconOption('assets/light.png'),
+                  _iconOption('assets/power-socket.png'),
+                  _iconOption('assets/rgb.png'),
+                  _iconOption('assets/room.png'),
+                  _iconOption('assets/washing-machine.png'),
+                  _iconOption('assets/chandlier.png'),
+                  _iconOption('assets/cooling-fan.png'),
+                  _iconOption('assets/food.png'),
+
+                  _iconOption('assets/table_fan.png'),
                 ],
               ),
             ),
@@ -160,32 +171,7 @@ class _SettingsPageState extends State<SettingsPage> {
             // Delete Button
             TextButton.icon(
               onPressed: () {
-                showDialog(
-                  context: context,
-                  builder:
-                      (context) => AlertDialog(
-                        title: Text(
-                          "Delete Alert",
-                          style: TextStyle(fontSize: 20),
-                        ),
-                        content: Text(
-                          "Are you sure you want to delete this device?",
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Get.back(),
-                            child: Text("Cancel"),
-                          ),
-                          ElevatedButton(
-                            onPressed: () {
-                              deviceController.removeDevice(widget.device);
-                              Get.to(() => HomeScreen());
-                            },
-                            child: Text("Delete"),
-                          ),
-                        ],
-                      ),
-                );
+                _showDeleteDialog(context);
               },
               label: Text(
                 "Delete device",
@@ -196,6 +182,27 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<dynamic> _showDeleteDialog(BuildContext context) {
+    return showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text("Delete Alert", style: TextStyle(fontSize: 20)),
+            content: Text("Are you sure you want to delete this device?"),
+            actions: [
+              TextButton(onPressed: () => Get.back(), child: Text("Cancel")),
+              ElevatedButton(
+                onPressed: () {
+                  deviceController.removeDevice(widget.device);
+                  Get.to(() => HomeScreen());
+                },
+                child: Text("Delete"),
+              ),
+            ],
+          ),
     );
   }
 }

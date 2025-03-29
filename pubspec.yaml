@@ -76,6 +76,20 @@ flutter:
     - assets/fan.png
     - assets/geyser.png
     - assets/refrigerator.png
+    - assets/led-strip.png
+    - assets/light.png
+    - assets/power-socket.png
+    - assets/rgb.png
+    - assets/room.png
+    - assets/washing-machine.png
+    - assets/table_fan.png
+    - assets/chandlier.png
+    - assets/cooling-fan.png
+    - assets/food.png
+   
+    
+    
+    
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
