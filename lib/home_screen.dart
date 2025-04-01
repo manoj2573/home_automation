@@ -5,6 +5,7 @@ import 'device_controller.dart';
 import 'auth_controller.dart';
 import 'add_device_dialog.dart';
 import 'device_control_page.dart';
+import 'scenes_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

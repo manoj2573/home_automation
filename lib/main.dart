@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'mqtt_service.dart'; // ✅ Import MQTT service
+import 'package:home_automation/dashboard.dart';
+import 'mqtt_service.dart';
 import 'auth_controller.dart';
 import 'device_controller.dart';
 import 'login_page.dart';
@@ -13,7 +14,7 @@ void main() async {
   Get.put(AuthController());
   Get.put(DeviceController());
 
-  await MqttService.connect(); // ✅ Ensure MQTT connects before UI loads
+  await MqttService.connect();
 
   runApp(MyApp());
 }
@@ -26,7 +27,7 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       home:
           Get.find<AuthController>().firebaseUser.value != null
-              ? HomeScreen()
+              ? MyDashboard()
               : LoginPage(),
     );
   }
