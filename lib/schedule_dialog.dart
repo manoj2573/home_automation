@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'device_controller.dart';
 import 'mqtt_service.dart';
 import 'device.dart';
 
@@ -264,7 +263,9 @@ class _ScheduleDialogPageState extends State<ScheduleDialogPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         title: Text('${widget.device.name} Schedules'),
         actions: [
           Padding(
@@ -277,32 +278,45 @@ class _ScheduleDialogPageState extends State<ScheduleDialogPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              itemCount: schedules.length,
-              itemBuilder: (context, index) {
-                final schedule = schedules[index];
-                return Padding(
-                  padding: const EdgeInsets.all(6.0),
-                  child: ListTile(
-                    tileColor: const Color.fromARGB(255, 211, 190, 247),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    title: Text(schedule['scheduleId'] ?? "Unnamed Schedule"),
-
-                    subtitle: Text(
-                      "On: ${schedule["onTime"] ?? "-"} Off: ${schedule["offTime"] ?? "-"}",
-                    ),
-                    onTap: () => _showScheduleDialog(schedule),
-                  ),
-                );
-              },
-            ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  itemCount: schedules.length,
+                  itemBuilder: (context, index) {
+                    final schedule = schedules[index];
+                    return Padding(
+                      padding: const EdgeInsets.all(6.0),
+                      child: ListTile(
+                        tileColor: const Color.fromARGB(255, 211, 190, 247),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        title: Text(
+                          schedule['scheduleId'] ?? "Unnamed Schedule",
+                        ),
+
+                        subtitle: Text(
+                          "On: ${schedule["onTime"] ?? "-"} Off: ${schedule["offTime"] ?? "-"}",
+                        ),
+                        onTap: () => _showScheduleDialog(schedule),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

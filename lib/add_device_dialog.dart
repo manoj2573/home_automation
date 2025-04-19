@@ -142,7 +142,6 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
           name: defaultName,
           type: type,
           state: RxBool(false),
-          pin: 'N/A',
           iconPath: "assets/light-bulb.png",
           deviceId: deviceId,
           registrationId: registrationIdController.text,
@@ -167,21 +166,6 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          DropdownButton<String>(
-            value: selectedModel,
-            items:
-                ["v.1", "v.2", "v.3", "v.4"].map((String model) {
-                  return DropdownMenuItem<String>(
-                    value: model,
-                    child: Text("Model $model"),
-                  );
-                }).toList(),
-            onChanged: (newValue) {
-              setState(() {
-                selectedModel = newValue!;
-              });
-            },
-          ),
           TextField(
             controller: registrationIdController,
             decoration: InputDecoration(labelText: "Registration ID"),

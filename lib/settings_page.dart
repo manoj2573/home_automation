@@ -114,72 +114,85 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         title: Text("Device Settings"),
         actions: [IconButton(icon: Icon(Icons.check), onPressed: _saveChanges)],
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            // Device Name
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: 'Device Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 20),
-
-            // Room Name
-            TextField(
-              controller: _roomController,
-              decoration: InputDecoration(
-                labelText: 'Room Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 20),
-
-            // Device Icon Selection
-            GestureDetector(
-              onTap: _showIconSelectionDialog,
-              child: Card(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        'Device Icon',
-                        style: TextStyle(fontSize: 18),
-                      ),
-                    ),
-                    Image.asset(
-                      _selectedIconPath ?? widget.device.iconPath,
-                      width: 60,
-                      height: 60,
-                    ),
-                  ],
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                // Device Name
+                TextField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Device Name',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ),
-            SizedBox(height: 20),
+                SizedBox(height: 20),
 
-            // Delete Button
-            TextButton.icon(
-              onPressed: () {
-                _showDeleteDialog(context);
-              },
-              label: Text(
-                "Delete device",
-                style: TextStyle(fontSize: 20, color: Colors.black),
-              ),
-              icon: Icon(Icons.delete_forever, size: 40, color: Colors.red),
+                // Room Name
+                TextField(
+                  controller: _roomController,
+                  decoration: InputDecoration(
+                    labelText: 'Room Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 20),
+
+                // Device Icon Selection
+                GestureDetector(
+                  onTap: _showIconSelectionDialog,
+                  child: Card(
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                            'Device Icon',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                        ),
+                        Image.asset(
+                          _selectedIconPath ?? widget.device.iconPath,
+                          width: 60,
+                          height: 60,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 20),
+
+                // Delete Button
+                TextButton.icon(
+                  onPressed: () {
+                    _showDeleteDialog(context);
+                  },
+                  label: Text(
+                    "Delete device",
+                    style: TextStyle(fontSize: 20, color: Colors.black),
+                  ),
+                  icon: Icon(Icons.delete_forever, size: 40, color: Colors.red),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

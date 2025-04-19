@@ -75,7 +75,7 @@ class MqttService {
       print("⚠️ MQTT not connected. Cannot publish to $deviceTopic");
       return;
     }
-    String topic = "$deviceTopic";
+    String topic = deviceTopic;
     final builder = MqttClientPayloadBuilder();
     builder.addString(message);
     client.publishMessage(topic, MqttQos.atMostOnce, builder.payload!);
@@ -87,7 +87,7 @@ class MqttService {
       print("⚠️ MQTT not connected. Cannot subscribe to $deviceTopic");
       return;
     }
-    String topic = "$deviceTopic";
+    String topic = deviceTopic;
     client.subscribe(topic, MqttQos.atMostOnce);
     print("✅ Subscribed to: $topic");
   }
@@ -111,11 +111,11 @@ class MqttService {
   static Future<SecurityContext> getSecurityContext() async {
     SecurityContext context = SecurityContext.defaultContext;
 
-    final rootCA = await rootBundle.load('assets/root-CA.crt');
+    final rootCA = await rootBundle.load('assets/secrets/root-CA.crt');
     context.setTrustedCertificatesBytes(rootCA.buffer.asUint8List());
 
-    final clientCert = await rootBundle.load('assets/pem.crt');
-    final privateKey = await rootBundle.load('assets/private.pem.key');
+    final clientCert = await rootBundle.load('assets/secrets/pem.crt');
+    final privateKey = await rootBundle.load('assets/secrets/private.pem.key');
 
     context.useCertificateChainBytes(clientCert.buffer.asUint8List());
     context.usePrivateKeyBytes(privateKey.buffer.asUint8List());

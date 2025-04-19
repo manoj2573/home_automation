@@ -4,7 +4,6 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:home_automation/schedule_dialog.dart';
-import 'package:intl/intl.dart';
 import 'device_controller.dart';
 import 'mqtt_service.dart';
 import 'device.dart';
@@ -25,7 +24,7 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
   Color _currentColor = Colors.white;
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final FirebaseAuth auth = FirebaseAuth.instance;
-  bool _isDragging = false;
+  final bool _isDragging = false;
 
   Future? _loadFuture;
   bool _isDataLoaded = false;
@@ -123,7 +122,7 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
       deviceController.devices.refresh();
 
       print(
-        "🔄 UI Updated for ${device.name}: State = ${newState}, Slider = ${newSliderValue}, Color = ${newColor}",
+        "🔄 UI Updated for ${device.name}: State = $newState, Slider = $newSliderValue, Color = $newColor",
       );
 
       // ✅ Update Firestore
@@ -199,8 +198,7 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
       'deviceName': widget.device.name,
       'deviceType': widget.device.type,
       'state': widget.device.state.value,
-      'pin1No': widget.device.pin,
-      'pin2No': widget.device.pin2 ?? '',
+
       'sliderValue': _currentValue,
       'color': _colorToHex(_currentColor),
       'registrationId': widget.device.registrationId,
@@ -283,12 +281,32 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
     final DeviceController deviceController = Get.find();
 
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.device.name} Controls')),
-      body: FutureBuilder(
-        future: _loadFuture,
-        builder: (context, snapshot) {
-          return _buildDeviceControlUI(deviceController);
-        },
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: Text(
+          '${widget.device.name} Controls',
+          style: TextStyle(color: Colors.blueGrey[900]),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Container(
+        height: MediaQuery.of(context).size.height * 1,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: FutureBuilder(
+            future: _loadFuture,
+            builder: (context, snapshot) {
+              return _buildDeviceControlUI(deviceController);
+            },
+          ),
+        ),
       ),
     );
   }
@@ -448,7 +466,7 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                         Icon(
                           Icons.settings,
                           size: 80,
-                          color: const Color.fromARGB(255, 101, 74, 155),
+                          color: Color.fromARGB(255, 216, 129, 41),
                         ),
                       ],
                     ),
@@ -471,7 +489,7 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                         Icon(
                           Icons.calendar_month,
                           size: 80,
-                          color: const Color.fromARGB(255, 101, 74, 155),
+                          color: Color.fromARGB(255, 216, 129, 41),
                         ),
                       ],
                     ),

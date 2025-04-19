@@ -12,30 +12,57 @@ class SignupPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Sign Up")),
-      body: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: emailController,
-              decoration: InputDecoration(labelText: "Email"),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: Center(
+          child: Text(
+            "YANTRA",
+            style: TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.w600,
+              color: Colors.blueGrey[900],
+              letterSpacing: 3,
             ),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: InputDecoration(labelText: "Password"),
+          ),
+        ),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Image.asset('assets/logo.png', height: 150),
+                Text('Sign Up', style: TextStyle(fontSize: 20)),
+                TextField(
+                  controller: emailController,
+                  decoration: InputDecoration(labelText: "Email"),
+                ),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: InputDecoration(labelText: "Password"),
+                ),
+                SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed:
+                      () => authController.register(
+                        emailController.text,
+                        passwordController.text,
+                      ),
+                  child: Text("Sign Up"),
+                ),
+              ],
             ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed:
-                  () => authController.register(
-                    emailController.text,
-                    passwordController.text,
-                  ),
-              child: Text("Sign Up"),
-            ),
-          ],
+          ),
         ),
       ),
     );

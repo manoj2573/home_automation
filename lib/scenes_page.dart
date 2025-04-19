@@ -371,39 +371,49 @@ class _ScenesPageState extends State<ScenesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text("Scenes"),
-        backgroundColor: const Color.fromARGB(255, 240, 200, 126),
+        backgroundColor: Colors.transparent,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddSceneDialog,
         child: const Icon(Icons.add),
       ),
-      body:
-          scenes.isEmpty
-              ? const Center(child: Text("No scenes found"))
-              : ListView.builder(
-                itemCount: scenes.length,
-                itemBuilder: (context, index) {
-                  final scene = scenes[index];
-                  return Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: InkWell(
-                      onTap: () {
-                        _toggleScene(scene, !scene["active"]);
-                      },
-                      child: ListTile(
-                        tileColor: Colors.amber[100],
-                        title: Text(scene["sceneName"]),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.edit),
-                          onPressed: () => _showEditSceneDialog(scene),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child:
+            scenes.isEmpty
+                ? const Center(child: Text("No scenes found"))
+                : ListView.builder(
+                  itemCount: scenes.length,
+                  itemBuilder: (context, index) {
+                    final scene = scenes[index];
+                    return Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: InkWell(
+                        onTap: () {
+                          _toggleScene(scene, !scene["active"]);
+                        },
+                        child: ListTile(
+                          tileColor: Colors.amber[100],
+                          title: Text(scene["sceneName"]),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.edit),
+                            onPressed: () => _showEditSceneDialog(scene),
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
+      ),
     );
   }
 }

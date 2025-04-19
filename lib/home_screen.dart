@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:home_automation/login_page.dart';
 import 'device.dart';
 import 'device_controller.dart';
 import 'auth_controller.dart';
 import 'add_device_dialog.dart';
 import 'device_control_page.dart';
-import 'scenes_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,36 +23,49 @@ class _HomeScreenState extends State<HomeScreen> {
     deviceController.loadDevices(); // ✅ Load devices on startup
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(
           "SMART HOME",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.w400,
+            color: Colors.blueGrey[900],
+            letterSpacing: 2.5,
+          ),
         ),
-        backgroundColor: const Color.fromARGB(255, 240, 200, 126),
+        backgroundColor: Colors.transparent,
       ),
       drawer: Drawer(
-        width: 270,
+        width: MediaQuery.of(context).size.width * 0.65,
         backgroundColor: const Color.fromARGB(255, 240, 200, 126),
 
         child: ListView(
           children: [
             DrawerHeader(
               decoration: BoxDecoration(
-                border: Border.all(width: 1),
                 color: const Color.fromARGB(255, 240, 200, 126),
               ),
               child: Column(
                 children: [
+                  Image.asset('assets/logo.png', height: 80),
                   Center(
                     child: Text(
                       "YANTRA",
                       style: TextStyle(
-                        fontSize: 40,
-                        color: const Color.fromARGB(255, 36, 34, 32),
+                        fontSize: 20,
+                        color: Colors.blueGrey[900],
+                        letterSpacing: 2,
                       ),
                     ),
                   ),
-                  Text('data'),
+                  Text(
+                    'Home Automation',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blueGrey[900],
+                      letterSpacing: 2,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -65,13 +78,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (context) => AddDeviceDialog(),
                   );
                 },
-                label: Text("Add Device", style: TextStyle(fontSize: 20)),
-                icon: Icon(Icons.add, size: 30),
+                label: Text(
+                  "Add Device",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 18,
+                    color: Colors.blueGrey[900],
+                  ),
+                ),
+                icon: Icon(Icons.add, size: 30, color: Colors.blueGrey[900]),
               ),
             ),
-            SizedBox(height: 400),
+            SizedBox(height: 380),
             Divider(
-              thickness: 2,
+              thickness: 1,
               color: Colors.black,
               indent: 20,
               endIndent: 20,
@@ -84,126 +104,160 @@ class _HomeScreenState extends State<HomeScreen> {
                     authController,
                   ); // ✅ Navigate to log
                 },
-                label: Text("LogOut", style: TextStyle(fontSize: 20)),
-                icon: Icon(Icons.logout, size: 30, color: Colors.redAccent),
+                label: Text(
+                  "LogOut",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 20,
+                    color: Colors.blueGrey[900],
+                  ),
+                ),
+                icon: Icon(Icons.logout, size: 25, color: Colors.redAccent),
               ),
             ),
           ],
         ),
       ),
 
-      body: Obx(() {
-        if (deviceController.devices.isEmpty) {
-          return Center(child: Text("No devices found"));
-        }
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Obx(() {
+          if (deviceController.devices.isEmpty) {
+            return Center(child: Text("No devices found"));
+          }
 
-        // ✅ Group devices by `roomName`
-        Map<String, List<Device>> groupedDevices = {};
-        for (var device in deviceController.devices) {
-          groupedDevices.putIfAbsent(device.roomName, () => []).add(device);
-        }
+          // ✅ Group devices by `roomName`
+          Map<String, List<Device>> groupedDevices = {};
+          for (var device in deviceController.devices) {
+            groupedDevices.putIfAbsent(device.roomName, () => []).add(device);
+          }
 
-        return ListView(
-          padding: EdgeInsets.all(8),
-          children:
-              groupedDevices.entries.map((entry) {
-                String roomName = entry.key;
-                List<Device> devices = entry.value;
+          return SafeArea(
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(8, 8, 8, 16),
+              children:
+                  groupedDevices.entries.map((entry) {
+                    String roomName = entry.key;
+                    List<Device> devices = entry.value;
 
-                // ✅ Check if all devices in the room are ON
-                bool isRoomOn = devices.every((device) => device.state.value);
+                    // ✅ Check if all devices in the room are ON
+                    bool isRoomOn = devices.every(
+                      (device) => device.state.value,
+                    );
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ✅ Room Name Header with Switch
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            roomName, // ✅ Display Room Name
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w500,
+                          // ✅ Room Name Header with Switch
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 12),
+                                  child: Text(
+                                    roomName, // ✅ Display Room Name
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w400,
+                                      color: Colors.blueGrey[900],
+                                    ),
+                                  ),
+                                ),
+                                Switch(
+                                  activeTrackColor: Colors.green.shade200,
+                                  value: isRoomOn,
+                                  onChanged: (value) {
+                                    _toggleRoomDevices(
+                                      deviceController,
+                                      devices,
+                                      value,
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
                           ),
-                          Switch(
-                            activeTrackColor: Colors.green.shade200,
-                            value: isRoomOn,
-                            onChanged: (value) {
-                              _toggleRoomDevices(
-                                deviceController,
-                                devices,
-                                value,
+
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                  childAspectRatio: 1,
+                                ),
+                            itemCount: devices.length,
+                            itemBuilder: (context, index) {
+                              final device = devices[index];
+
+                              return GestureDetector(
+                                onTap: () {
+                                  deviceController.toggleDeviceState(device);
+                                },
+                                onLongPress: () async {
+                                  await Get.to(
+                                    () => DeviceControlPage(device: device),
+                                  );
+                                  deviceController
+                                      .loadDevices(); // Refresh on return
+                                },
+                                child: Card(
+                                  color:
+                                      device.state.value
+                                          ? Colors.green.shade200
+                                          : Colors.white,
+                                  elevation: 4,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Image.asset(
+                                          device.iconPath,
+                                          width: 40,
+                                          height: 40,
+                                        ),
+                                        SizedBox(height: 10),
+                                        Text(
+                                          device.name,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        Text(device.state.value ? 'On' : 'Off'),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               );
                             },
                           ),
+                          SizedBox(height: 20),
+                          Divider(
+                            color: Colors.blueGrey[400],
+                            indent: 2,
+                            endIndent: 2,
+                          ),
                         ],
                       ),
-                    ),
-
-                    // ✅ Device Grid for this Room
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                        childAspectRatio: 1,
-                      ),
-                      itemCount: devices.length,
-                      itemBuilder: (context, index) {
-                        final device = devices[index];
-
-                        return GestureDetector(
-                          onTap: () {
-                            deviceController.toggleDeviceState(device);
-                          },
-                          onLongPress: () async {
-                            await Get.to(
-                              () => DeviceControlPage(device: device),
-                            );
-                            deviceController.loadDevices(); // Refresh on return
-                          },
-                          child: Card(
-                            color:
-                                device.state.value
-                                    ? Colors.green.shade200
-                                    : Colors.white,
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    device.iconPath,
-                                    width: 40,
-                                    height: 40,
-                                  ),
-                                  SizedBox(height: 10),
-                                  Text(
-                                    device.name,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  Text(device.state.value ? 'On' : 'Off'),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                );
-              }).toList(),
-        );
-      }),
+                    );
+                  }).toList(),
+            ),
+          );
+        }),
+      ),
     );
   }
 
@@ -222,7 +276,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ElevatedButton(
                 onPressed: () {
                   authController.logout();
-                  Get.offAllNamed('/login'); // ✅ Navigate to login screen
+
+                  Get.to(() => LoginPage()); // ✅ Navigate to login screen
                 },
                 child: Text("Logout"),
               ),

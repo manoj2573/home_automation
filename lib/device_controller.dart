@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
-import 'package:mqtt_client/mqtt_client.dart';
 import 'device.dart';
 import 'mqtt_service.dart';
 import 'dart:async'; // ✅ Add this import
@@ -12,7 +11,7 @@ class DeviceController extends GetxController {
   var devices = <Device>[].obs;
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final FirebaseAuth auth = FirebaseAuth.instance;
-  bool _isDisposed = false;
+  final bool _isDisposed = false;
 
   @override
   void onInit() {
@@ -110,7 +109,7 @@ class DeviceController extends GetxController {
                   name: data["name"],
                   type: data["type"],
                   state: RxBool(data["state"]),
-                  pin: data["pin"],
+
                   iconPath: data["iconPath"],
                   sliderValue: RxDouble(data["sliderValue"]?.toDouble() ?? 0),
                   color: data["color"] ?? "#FFFFFF",
@@ -140,8 +139,7 @@ class DeviceController extends GetxController {
           "name": device.name,
           "type": device.type,
           "state": device.state.value,
-          "pin": device.pin,
-          "pin2": device.pin2 ?? "",
+
           "iconPath": device.iconPath,
           "sliderValue": device.sliderValue?.value ?? 0,
           "color": device.color,
@@ -181,8 +179,7 @@ class DeviceController extends GetxController {
       "deviceName": device.name,
       "deviceType": device.type,
       "state": device.state.value,
-      "pin": device.pin,
-      "pin2": device.pin2,
+
       "sliderValue": device.sliderValue?.value ?? 0.0,
       'color': device.color,
       "registrationId": device.registrationId,

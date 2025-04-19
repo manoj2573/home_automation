@@ -14,38 +14,74 @@ class LoginPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Login")),
-      body: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: emailController,
-              decoration: InputDecoration(labelText: "Email"),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: Center(
+          child: Text(
+            "YANTRA",
+            style: TextStyle(
+              letterSpacing: 3,
+              fontSize: 25,
+              fontWeight: FontWeight.w600,
+              color: Colors.blueGrey[900],
             ),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: InputDecoration(labelText: "Password"),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed:
-                  () => authController.login(
-                    emailController.text,
-                    passwordController.text,
+          ),
+        ),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Image.asset('assets/logo.png', height: 150),
+                Text('Log In', style: TextStyle(fontSize: 20)),
+                TextField(
+                  controller: emailController,
+                  decoration: InputDecoration(labelText: "Email"),
+                ),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: InputDecoration(labelText: "Password"),
+                ),
+                SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed:
+                      () => authController.login(
+                        emailController.text,
+                        passwordController.text,
+                      ),
+                  child: Text("Login"),
+                ),
+                TextButton(
+                  onPressed: () => Get.to(() => SignupPage()),
+                  child: Text("Don't have an account? Sign up"),
+                ),
+
+                ElevatedButton.icon(
+                  onPressed: () => authController.signInWithGoogle(),
+                  icon: Icon(Icons.login, color: Colors.white),
+                  label: Text("Sign in with Google"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
                   ),
-              child: Text("Login"),
+                ),
+                TextButton(
+                  onPressed: () => Get.to(() => ForgotPasswordPage()),
+                  child: Text("Forgot Password?"),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () => Get.to(() => SignupPage()),
-              child: Text("Don't have an account? Sign up"),
-            ),
-            TextButton(
-              onPressed: () => Get.to(() => ForgotPasswordPage()),
-              child: Text("Forgot Password?"),
-            ),
-          ],
+          ),
         ),
       ),
     );

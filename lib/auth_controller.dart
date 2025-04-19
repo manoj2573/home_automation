@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_screen.dart';
 import 'login_page.dart';
 import 'device_controller.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -57,6 +58,7 @@ class AuthController extends GetxController {
   // ✅ Logout User and Clear Devices
   void logout() async {
     await _auth.signOut();
+    await GoogleSignIn().signOut();
     Get.find<DeviceController>().devices.clear(); // ✅ Clear devices on logout
     Get.offAll(() => LoginPage());
   }
@@ -68,6 +70,41 @@ class AuthController extends GetxController {
       Get.snackbar("Success", "Password reset email sent!");
     } catch (e) {
       Get.snackbar("Error", e.toString());
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    try {
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+
+      if (googleUser == null) {
+        // User canceled the sign-in
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
+
+      // Store user email in Firestore if it's a new user
+      if (userCredential.additionalUserInfo!.isNewUser) {
+        await _firestore.collection('users').doc(userCredential.user!.uid).set({
+          'email': userCredential.user!.email,
+        });
+      }
+
+      Get.offAll(() => HomeScreen());
+    } catch (e) {
+      print("❌ Google Sign-In Error: $e");
+      Get.snackbar("Google Sign-In Failed", e.toString());
     }
   }
 }
