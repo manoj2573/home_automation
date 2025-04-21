@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:home_automation/login_page.dart';
+import 'package:home_automation/wifi_and_add_device_flow_dialog.dart';
 import 'device.dart';
 import 'device_controller.dart';
 import 'auth_controller.dart';
@@ -75,11 +76,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: () {
                   showDialog(
                     context: context,
+                    builder: (context) => WiFiAndAddDeviceFlowDialog(),
+                  );
+                },
+                label: Text(
+                  "Add wifi Device",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 18,
+                    color: Colors.blueGrey[900],
+                  ),
+                ),
+                icon: Icon(Icons.add, size: 30, color: Colors.blueGrey[900]),
+              ),
+            ),
+            ListTile(
+              title: TextButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
                     builder: (context) => AddDeviceDialog(),
                   );
                 },
                 label: Text(
-                  "Add Device",
+                  "add device",
                   style: TextStyle(
                     fontWeight: FontWeight.w400,
                     fontSize: 18,

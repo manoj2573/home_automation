@@ -23,8 +23,9 @@ class MqttService {
 
     final connMessage =
         MqttConnectMessage()
-            .withClientIdentifier('home_automation_app')
-            .startClean();
+          ..withClientIdentifier(
+            'home_automation_app_${DateTime.now().millisecondsSinceEpoch}',
+          ).startClean();
     client.connectionMessage = connMessage;
 
     try {
