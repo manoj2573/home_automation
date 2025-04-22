@@ -1,215 +1,160 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:wifi_iot/wifi_iot.dart';
+import 'package:http/http.dart' as http;
 import 'package:get/get.dart';
+import 'dart:convert';
+
 import 'device.dart';
 import 'device_controller.dart';
-import 'mqtt_service.dart';
 
-class AddDeviceDialog extends StatefulWidget {
-  const AddDeviceDialog({super.key});
+class WiFiProvisionDialog extends StatefulWidget {
+  const WiFiProvisionDialog({super.key});
 
   @override
-  _AddDeviceDialogState createState() => _AddDeviceDialogState();
+  State<WiFiProvisionDialog> createState() => _WiFiProvisionDialogState();
 }
 
-class _AddDeviceDialogState extends State<AddDeviceDialog> {
-  final TextEditingController registrationIdController =
-      TextEditingController();
-  final TextEditingController pairingCodeController = TextEditingController();
-  final TextEditingController roomNameController =
-      TextEditingController(); // ✅ New Room Name Controller
-  String selectedDeviceId = "";
-  String selectedVersionCode = "";
-  List<Map<String, dynamic>> selectedDevices = [];
-
-  bool isAdding = false;
-  bool isPairing = false;
-  bool isStatusConfirmed = false;
-
-  String selectedModel = "v.1";
+class _WiFiProvisionDialogState extends State<WiFiProvisionDialog> {
+  final ssidController = TextEditingController();
+  final passwordController = TextEditingController();
+  final roomController = TextEditingController();
+  bool isConnectedToESP = false;
+  bool isSending = false;
 
   @override
   void initState() {
     super.initState();
-    MqttService.subscribe("discovery/+"); // ✅ Subscribe to MQTT
-    MqttService.setMessageHandler(_onMqttMessageReceived);
+    _initialize();
   }
 
-  @override
-  void dispose() {
-    MqttService.unsubscribe("discovery/+");
-    super.dispose();
+  Future<void> _initialize() async {
+    await [
+      Permission.location,
+      Permission.locationWhenInUse,
+      Permission.locationAlways,
+    ].request();
+
+    final connected = await WiFiForIoTPlugin.connect(
+      "ESP32_Config",
+      security: NetworkSecurity.WPA,
+      password: "12345678",
+      joinOnce: true,
+      withInternet: false,
+    );
+
+    if (connected) {
+      await WiFiForIoTPlugin.forceWifiUsage(true);
+      setState(() => isConnectedToESP = true);
+    }
   }
 
-  void _onMqttMessageReceived(String topic, String message) {
-    print("📩 Received MQTT Message: Topic: $topic, Message: $message");
+  Future<void> _provisionDevice() async {
+    setState(() => isSending = true);
 
     try {
-      Map<String, dynamic> data = jsonDecode(message);
-      if (topic.startsWith("discovery/") &&
-          data.containsKey("registrationId")) {
-        setState(() {
-          registrationIdController.text = data["registrationId"];
-        });
+      final deviceResp = await http.get(
+        Uri.parse("http://192.168.4.1/device-info"),
+      );
 
-        if (data.containsKey("status") && data["status"] == "confirmed") {
-          setState(() {
-            isStatusConfirmed = true;
-          });
+      if (deviceResp.statusCode != 200) {
+        Get.snackbar("Error", "Failed to get device info");
+        return;
+      }
 
-          if (data.containsKey("versionCode") && data.containsKey("devices")) {
-            selectedVersionCode = data["versionCode"];
-            selectedDevices = List<Map<String, dynamic>>.from(data["devices"]);
+      final deviceData = jsonDecode(deviceResp.body);
 
-            print(
-              "✅ Version Code: $selectedVersionCode, Devices: $selectedDevices",
-            );
+      // Send Wi-Fi credentials
+      final wifiResp = await http.post(
+        Uri.parse("http://192.168.4.1/connect"),
+        body: {
+          'ssid': ssidController.text,
+          'password': passwordController.text,
+        },
+      );
 
-            // ✅ Create devices after status confirmation
-            _createDevicesBasedOnModel();
-
-            Get.back(); // Close the dialog
-            Get.snackbar(
-              "Success",
-              "Pairing successful, devices created",
-              snackPosition: SnackPosition.BOTTOM,
-              duration: Duration(seconds: 3),
-            );
-          }
+      if (wifiResp.statusCode == 200 &&
+          wifiResp.body.toLowerCase().contains("received")) {
+        _createDevices(deviceData);
+        if (wifiResp.statusCode == 200 &&
+            wifiResp.body.toLowerCase().contains("received")) {
+          _createDevices(deviceData);
+          await WiFiForIoTPlugin.disconnect(); // ✅ Disconnect from ESP32 hotspot
+          Get.back(); // Close the dialog
+          Get.snackbar("Success", "Devices added successfully");
         }
+
+        Get.back(); // Close the dialog
+        Get.snackbar("Success", "Devices added successfully");
+      } else {
+        Get.snackbar("Error", "ESP32 rejected Wi-Fi credentials");
       }
     } catch (e) {
-      print("❌ Error parsing MQTT message: $e");
+      Get.snackbar("Error", "Failed: $e");
+    } finally {
+      setState(() => isSending = false);
     }
   }
 
-  void _sendPairingRequest() {
-    if (pairingCodeController.text.isNotEmpty &&
-        registrationIdController.text.isNotEmpty) {
-      setState(() {
-        isPairing = true;
-      });
-
-      MqttService.publish(
-        "discovery/${registrationIdController.text}",
-        jsonEncode({"pairingCode": pairingCodeController.text}),
-      );
-    } else {
-      Get.snackbar(
-        "Error",
-        "Please enter both Registration ID and Pairing Code",
-      );
-    }
-  }
-
-  void _createDevicesBasedOnModel() {
+  void _createDevices(Map<String, dynamic> json) {
     final deviceController = Get.find<DeviceController>();
+    final roomName = roomController.text.trim();
 
-    if (selectedDevices.isEmpty || selectedVersionCode.isEmpty) {
-      Get.snackbar(
-        "Error",
-        "No Device IDs or Version Code found. Please pair first.",
+    if (!json.containsKey("devices")) return;
+
+    for (var d in json["devices"]) {
+      final device = Device(
+        name: d["type"],
+        type: d["type"],
+        state: RxBool(false),
+        iconPath: "assets/light-bulb.png",
+        deviceId: d["deviceId"],
+        registrationId: json["registrationId"] ?? "NA",
+        roomName: roomName,
       );
-      return;
-    }
-
-    if (roomNameController.text.isEmpty) {
-      Get.snackbar("Error", "Please enter a Room Name.");
-      return;
-    }
-
-    List<Device> devices = [];
-
-    for (var device in selectedDevices) {
-      String deviceId = device["deviceId"];
-      String type = device["type"];
-
-      String defaultName =
-          type == "On/Off"
-              ? "Switch"
-              : type == "Fan"
-              ? "Ceiling Fan"
-              : type == "Dimmable light"
-              ? "Smart Light"
-              : type == "RGB"
-              ? "RGB Light"
-              : type == "Curtain"
-              ? "Curtains"
-              : "Device $deviceId";
-
-      devices.add(
-        Device(
-          name: defaultName,
-          type: type,
-          state: RxBool(false),
-          iconPath: "assets/light-bulb.png",
-          deviceId: deviceId,
-          registrationId: registrationIdController.text,
-          roomName: roomNameController.text, // ✅ Assign the room name
-        ),
-      );
-    }
-
-    for (Device device in devices) {
       deviceController.addDevice(device);
     }
-
-    print(
-      "✅ Created ${devices.length} devices in room: ${roomNameController.text}",
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text("Add Devices"),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DropdownButton<String>(
-            value: selectedModel,
-            items:
-                ["v.1", "v.2", "v.3", "v.4"].map((String model) {
-                  return DropdownMenuItem<String>(
-                    value: model,
-                    child: Text("Model $model"),
-                  );
-                }).toList(),
-            onChanged: (newValue) {
-              setState(() {
-                selectedModel = newValue!;
-              });
-            },
-          ),
-          TextField(
-            controller: registrationIdController,
-            decoration: InputDecoration(labelText: "Registration ID"),
-            readOnly: true,
-          ),
-          TextField(
-            controller: pairingCodeController,
-            decoration: InputDecoration(labelText: "Pairing Code"),
-          ),
-          TextField(
-            controller: roomNameController,
-            decoration: InputDecoration(labelText: "Room Name"), // ✅ New Field
-          ),
-        ],
-      ),
+      title: const Text("Wi-Fi Provisioning"),
+      content:
+          isConnectedToESP
+              ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: ssidController,
+                    decoration: const InputDecoration(labelText: "Wi-Fi SSID"),
+                  ),
+                  TextField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(
+                      labelText: "Wi-Fi Password",
+                    ),
+                    obscureText: true,
+                  ),
+                  TextField(
+                    controller: roomController,
+                    decoration: const InputDecoration(labelText: "Room Name"),
+                  ),
+                  const SizedBox(height: 20),
+                  isSending
+                      ? const CircularProgressIndicator()
+                      : ElevatedButton(
+                        onPressed: _provisionDevice,
+                        child: const Text("Provision & Add"),
+                      ),
+                ],
+              )
+              : const SizedBox(
+                height: 100,
+                child: Center(child: CircularProgressIndicator()),
+              ),
       actions: [
-        TextButton(
-          onPressed: () {
-            Get.back();
-          },
-          child: Text("Cancel"),
-        ),
-        ElevatedButton(
-          onPressed: _sendPairingRequest,
-          child:
-              isPairing
-                  ? CircularProgressIndicator()
-                  : Text("Pair & Add Devices"),
-        ),
+        TextButton(onPressed: () => Get.back(), child: const Text("Cancel")),
       ],
     );
   }

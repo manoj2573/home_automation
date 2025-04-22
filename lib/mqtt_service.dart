@@ -4,22 +4,36 @@ import 'package:flutter/services.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class MqttService {
   static late MqttServerClient client;
   static bool isConnected = false;
   static Function(String, String)? messageHandler; // Callback for messages
+  static Future<String> getUniqueClientId() async {
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+      final id = androidInfo.id;
+      return 'home_automation_$id';
+    } catch (e) {
+      print("⚠️ Failed to get unique ID: $e");
+      return 'home_automation_${DateTime.now().millisecondsSinceEpoch}';
+    }
+  }
 
   // ✅ Connect to MQTT
   static Future<void> connect() async {
+    final clientId = await getUniqueClientId();
     client = MqttServerClient.withPort(
       'anqg66n1fr3hi-ats.iot.eu-north-1.amazonaws.com', // Your AWS IoT endpoint
-      'home_automation_app',
+      clientId,
       8883,
     );
 
     client.keepAlivePeriod = 30;
     client.logging(on: true);
+    client.autoReconnect = true; // (optional if your library supports it)
 
     final connMessage =
         MqttConnectMessage()

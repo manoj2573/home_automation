@@ -9,9 +9,18 @@ import 'device_controller.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  // Register GetX Controllers
   Get.put(AuthController());
   Get.put(DeviceController());
-  await MqttService.connect();
+
+  try {
+    await MqttService.connect(); // ✅ With catch protection
+  } catch (e, stack) {
+    print('❌ MQTT Connect Error: $e');
+    print(stack);
+  }
+
   runApp(const MyApp());
 }
 
