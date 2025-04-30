@@ -224,35 +224,23 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
       _currentValue = value;
 
       if (value == 0) {
-        // ✅ If slider is 0, turn off the device
         widget.device.state.value = false;
       } else {
-        // ✅ If slider is >0, turn on the device
         widget.device.state.value = true;
       }
+
+      // ✅ ALSO UPDATE device.sliderValue!
+      widget.device.sliderValue?.value = value;
     });
 
-    // ✅ Update Firestore
-    String? uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-      FirebaseFirestore.instance
-          .collection("users")
-          .doc(uid)
-          .collection("devices")
-          .doc(widget.device.deviceId)
-          .update({
-            "state": widget.device.state.value,
-            "sliderValue": _currentValue,
-          });
-    }
+    int intSliderValue = _currentValue.toInt();
 
-    // ✅ Publish MQTT message
     Map<String, dynamic> payload = {
       "deviceId": widget.device.deviceId,
       "deviceName": widget.device.name,
       "deviceType": widget.device.type,
       "state": widget.device.state.value,
-      "sliderValue": _currentValue,
+      "sliderValue": intSliderValue,
       "color": _colorToHex(_currentColor),
       "registrationId": widget.device.registrationId,
     };
@@ -265,6 +253,19 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
       print("📡 Published to ${widget.device.deviceId}/device: $payload");
     } else {
       print("❌ MQTT is not connected. Cannot send message.");
+    }
+
+    String? uid = auth.currentUser?.uid;
+    if (uid != null) {
+      FirebaseFirestore.instance
+          .collection("users")
+          .doc(uid)
+          .collection("devices")
+          .doc(widget.device.deviceId)
+          .update({
+            "state": widget.device.state.value,
+            "sliderValue": _currentValue,
+          });
     }
   }
 
@@ -411,8 +412,8 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                   Slider(
                     value: _currentValue,
                     min: 0,
-                    max: 100,
-                    divisions: 100,
+                    max: 90,
+                    divisions: 90,
                     label: "${_currentValue.toInt()}",
                     onChanged: _onSliderChanged, // ✅ Pass function directly
                   ),
@@ -439,6 +440,7 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
               ),
               SizedBox(height: 10),
               ColorPicker(
+                paletteType: PaletteType.hueWheel,
                 colorPickerWidth: 220,
                 pickerColor: _currentColor,
                 onColorChanged: (color) {

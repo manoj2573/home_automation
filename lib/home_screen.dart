@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:home_automation/registration_id.dart';
 import 'package:home_automation/login_page.dart';
+import 'package:home_automation/update_wifi_dialog.dart';
 import 'device.dart';
 import 'device_controller.dart';
 import 'auth_controller.dart';
@@ -79,18 +81,54 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
                 label: Text(
-                  "Add wifi Device",
+                  "ADD DEVICE",
                   style: TextStyle(
                     fontWeight: FontWeight.w400,
                     fontSize: 18,
                     color: Colors.blueGrey[900],
                   ),
                 ),
-                icon: Icon(Icons.add, size: 30, color: Colors.blueGrey[900]),
+                icon: Icon(Icons.add, size: 25, color: Colors.blueGrey[900]),
               ),
             ),
 
-            SizedBox(height: 380),
+            ListTile(
+              title: TextButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => UpdateWifiDialog(),
+                  );
+                },
+                label: Text(
+                  "WIFI-Config",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 18,
+                    color: Colors.blueGrey[900],
+                  ),
+                ),
+                icon: Icon(Icons.router, size: 25, color: Colors.blueGrey[900]),
+              ),
+            ),
+            ListTile(
+              title: TextButton.icon(
+                onPressed: () {
+                  Get.to(() => const ConfigurationPage());
+                },
+                label: Text(
+                  "DEVICE LIST",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 18,
+                    color: Colors.blueGrey[900],
+                  ),
+                ),
+                icon: Icon(Icons.list, size: 25, color: Colors.blueGrey[900]),
+              ),
+            ),
+
+            SizedBox(height: MediaQuery.of(context).size.height * 0.35),
             Divider(
               thickness: 1,
               color: Colors.black,

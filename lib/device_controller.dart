@@ -104,18 +104,25 @@ class DeviceController extends GetxController {
           devices.value =
               snapshot.docs.map((doc) {
                 final data = doc.data();
-                return Device(
+                final device = Device(
                   deviceId: data["deviceId"],
                   name: data["name"],
                   type: data["type"],
                   state: RxBool(data["state"]),
-
                   iconPath: data["iconPath"],
                   sliderValue: RxDouble(data["sliderValue"]?.toDouble() ?? 0),
                   color: data["color"] ?? "#FFFFFF",
                   registrationId: data["registrationId"],
                   roomName: data["roomName"] ?? "Unknown Room",
                 );
+
+                // ✅ Subscribe to device topic if MQTT is connected
+                if (MqttService.isConnected) {
+                  MqttService.subscribe("${device.deviceId}/mobile");
+                  print("✅ Subscribed to ${device.deviceId}/mobile (on load)");
+                }
+
+                return device;
               }).toList();
 
           devices.refresh();
@@ -173,6 +180,8 @@ class DeviceController extends GetxController {
         .doc(device.deviceId)
         .update({"state": device.state.value});
 
+    double currentSliderValue = device.sliderValue?.value ?? 0.0;
+    int intSliderValue = currentSliderValue.toInt();
     // ✅ Send MQTT message
     Map<String, dynamic> payload = {
       "deviceId": device.deviceId,
@@ -180,7 +189,7 @@ class DeviceController extends GetxController {
       "deviceType": device.type,
       "state": device.state.value,
 
-      "sliderValue": device.sliderValue?.value ?? 0.0,
+      "sliderValue": intSliderValue,
       'color': device.color,
       "registrationId": device.registrationId,
       "roomName": device.roomName,
@@ -188,8 +197,6 @@ class DeviceController extends GetxController {
 
     if (MqttService.isConnected) {
       MqttService.publish("${device.deviceId}/device", jsonEncode(payload));
-      MqttService.subscribe("${device.deviceId}/mobile"); // ✅ Correct topic
-      print("📡 Subscribed to ${device.deviceId}/mobile");
     } else {
       print("❌ MQTT is not connected. Cannot send message.");
     }
