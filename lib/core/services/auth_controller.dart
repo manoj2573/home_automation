@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'home_screen.dart';
-import 'login_page.dart';
+import '../../home_screen.dart';
+import '../../features/auth/login_page.dart';
 import 'device_controller.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 

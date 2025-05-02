@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:home_automation/core/widgets/custom_text_fields.dart';
+import 'package:home_automation/core/widgets/theme.dart';
 import 'package:home_automation/home_screen.dart';
 import 'device.dart';
-import 'device_controller.dart';
+import '../../core/services/device_controller.dart';
 
 class SettingsPage extends StatefulWidget {
   final Device device;
@@ -117,17 +119,11 @@ class _SettingsPageState extends State<SettingsPage> {
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: Text("Device Settings"),
+        title: Text("Device Settings", style: AppTextStyles.title),
         actions: [IconButton(icon: Icon(Icons.check), onPressed: _saveChanges)],
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: BoxDecoration(gradient: AppGradients.loginBackground),
         child: SafeArea(
           child: Padding(
             padding: EdgeInsets.all(16),
@@ -136,36 +132,25 @@ class _SettingsPageState extends State<SettingsPage> {
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 // Device Name
-                TextField(
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    labelText: 'Device Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                SizedBox(height: 20),
+                AppTextField(controller: _nameController, label: 'Device Name'),
+                SizedBox(height: 12),
 
                 // Room Name
-                TextField(
-                  controller: _roomController,
-                  decoration: InputDecoration(
-                    labelText: 'Room Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
+                AppTextField(controller: _roomController, label: 'Room Name'),
                 SizedBox(height: 20),
 
                 // Device Icon Selection
                 GestureDetector(
                   onTap: _showIconSelectionDialog,
                   child: Card(
+                    color: AppColors.cardBackground,
                     child: Column(
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: Text(
-                            'Device Icon',
-                            style: TextStyle(fontSize: 18),
+                            'DEVICE  ICON',
+                            style: AppTextStyles.drawerList,
                           ),
                         ),
                         Image.asset(
@@ -177,18 +162,27 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 ),
-                SizedBox(height: 20),
+                SizedBox(height: MediaQuery.of(context).size.height * 0.05),
 
                 // Delete Button
-                TextButton.icon(
-                  onPressed: () {
-                    _showDeleteDialog(context);
-                  },
-                  label: Text(
-                    "Delete device",
-                    style: TextStyle(fontSize: 20, color: Colors.black),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 50),
+                  child: OutlinedButton(
+                    onPressed: () {
+                      _showDeleteDialog(context);
+                    },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.delete_forever,
+                          size: 40,
+                          color: AppColors.delete,
+                        ),
+                        Text('REMOVE DEVICE', style: AppTextStyles.label),
+                      ],
+                    ),
                   ),
-                  icon: Icon(Icons.delete_forever, size: 40, color: Colors.red),
                 ),
               ],
             ),

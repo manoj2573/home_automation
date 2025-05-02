@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'mqtt_service.dart';
+import '../../core/services/mqtt_service.dart';
 import 'update_wifi_dialog.dart'; // already exists
 
 class WifiStatusDialog extends StatefulWidget {

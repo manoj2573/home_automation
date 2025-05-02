@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'mqtt_service.dart';
-import 'device.dart';
+import 'package:home_automation/core/widgets/theme.dart';
+import '../../core/services/mqtt_service.dart';
+import '../device/device.dart';
 
 class ScheduleDialogPage extends StatefulWidget {
   final Device device;
@@ -266,26 +267,23 @@ class _ScheduleDialogPageState extends State<ScheduleDialogPage> {
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: Text('${widget.device.name} Schedules'),
+        title: Text(
+          '${widget.device.name} Schedules',
+          style: AppTextStyles.title,
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 14),
             child: IconButton(
               iconSize: 35,
               onPressed: () => _showScheduleDialog(),
-              icon: Icon(Icons.add),
+              icon: Icon(Icons.add, color: AppColors.black),
             ),
           ),
         ],
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: BoxDecoration(gradient: AppGradients.loginBackground),
         child: SafeArea(
           child: Column(
             children: [
@@ -296,19 +294,21 @@ class _ScheduleDialogPageState extends State<ScheduleDialogPage> {
                     final schedule = schedules[index];
                     return Padding(
                       padding: const EdgeInsets.all(6.0),
-                      child: ListTile(
-                        tileColor: const Color.fromARGB(255, 211, 190, 247),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        title: Text(
-                          schedule['scheduleId'] ?? "Unnamed Schedule",
-                        ),
+                      child: Card(
+                        child: ListTile(
+                          tileColor: AppColors.tileBackground,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          title: Text(
+                            schedule['scheduleId'] ?? "Unnamed Schedule",
+                          ),
 
-                        subtitle: Text(
-                          "On: ${schedule["onTime"] ?? "-"} Off: ${schedule["offTime"] ?? "-"}",
+                          subtitle: Text(
+                            "On: ${schedule["onTime"] ?? "-"} Off: ${schedule["offTime"] ?? "-"}",
+                          ),
+                          onTap: () => _showScheduleDialog(schedule),
                         ),
-                        onTap: () => _showScheduleDialog(schedule),
                       ),
                     );
                   },

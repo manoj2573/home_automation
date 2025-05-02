@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'auth_controller.dart';
+import 'package:home_automation/core/widgets/custom_text_fields.dart';
+import '../../core/services/auth_controller.dart';
 import 'signup_page.dart';
 import 'forgot_password_page.dart';
+import '../../core/widgets/theme.dart';
 
 class LoginPage extends StatelessWidget {
   final AuthController authController = Get.find();
@@ -17,42 +19,19 @@ class LoginPage extends StatelessWidget {
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: Center(
-          child: Text(
-            "YANTRA",
-            style: TextStyle(
-              letterSpacing: 3,
-              fontSize: 25,
-              fontWeight: FontWeight.w600,
-              color: Colors.blueGrey[900],
-            ),
-          ),
-        ),
+        title: Center(child: Text("YANTRA", style: AppTextStyles.appBar)),
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: BoxDecoration(gradient: AppGradients.loginBackground),
         child: SafeArea(
           child: Padding(
             padding: EdgeInsets.all(16),
             child: Column(
               children: [
                 Image.asset('assets/logo.png', height: 150),
-                Text('Log In', style: TextStyle(fontSize: 20)),
-                TextField(
-                  controller: emailController,
-                  decoration: InputDecoration(labelText: "Email"),
-                ),
-                TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: "Password"),
-                ),
+                Text('Log In', style: AppTextStyles.subtitle),
+                AppTextField(label: 'Email', controller: emailController),
+                AppTextField(controller: passwordController, label: 'Password'),
                 SizedBox(height: 20),
                 ElevatedButton(
                   onPressed:

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:home_automation/core/widgets/theme.dart';
 import 'package:home_automation/registration_id.dart';
-import 'package:home_automation/login_page.dart';
-import 'package:home_automation/update_wifi_dialog.dart';
-import 'device.dart';
-import 'device_controller.dart';
-import 'auth_controller.dart';
+import 'package:home_automation/features/auth/login_page.dart';
+import 'package:home_automation/features/wifi/update_wifi_dialog.dart';
+import 'features/device/device.dart';
+import 'core/services/device_controller.dart';
+import 'core/services/auth_controller.dart';
 import 'add_device_dialog.dart';
-import 'device_control_page.dart';
+import 'features/device/device_control_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,47 +28,24 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(
-          "SMART HOME",
-          style: TextStyle(
-            fontWeight: FontWeight.w400,
-            color: Colors.blueGrey[900],
-            letterSpacing: 2.5,
-          ),
-        ),
+        title: Text("SMART HOME", style: AppTextStyles.appBar),
         backgroundColor: Colors.transparent,
       ),
       drawer: Drawer(
         width: MediaQuery.of(context).size.width * 0.65,
-        backgroundColor: const Color.fromARGB(255, 240, 200, 126),
+        backgroundColor: AppColors.drawerBackgroundColor,
 
         child: ListView(
           children: [
             DrawerHeader(
-              decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 240, 200, 126),
-              ),
+              decoration: BoxDecoration(color: AppColors.drawerBackgroundColor),
               child: Column(
                 children: [
                   Image.asset('assets/logo.png', height: 80),
                   Center(
-                    child: Text(
-                      "YANTRA",
-                      style: TextStyle(
-                        fontSize: 20,
-                        color: Colors.blueGrey[900],
-                        letterSpacing: 2,
-                      ),
-                    ),
+                    child: Text("YANTRA", style: AppTextStyles.drawerTitle),
                   ),
-                  Text(
-                    'Home Automation',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blueGrey[900],
-                      letterSpacing: 2,
-                    ),
-                  ),
+                  Text('Home Automation', style: AppTextStyles.drawerSubTitle),
                 ],
               ),
             ),
@@ -80,14 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (context) => WiFiProvisionDialog(),
                   );
                 },
-                label: Text(
-                  "ADD DEVICE",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w400,
-                    fontSize: 18,
-                    color: Colors.blueGrey[900],
-                  ),
-                ),
+                label: Text("ADD DEVICE", style: AppTextStyles.drawerList),
                 icon: Icon(Icons.add, size: 25, color: Colors.blueGrey[900]),
               ),
             ),
@@ -100,14 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (context) => UpdateWifiDialog(),
                   );
                 },
-                label: Text(
-                  "WIFI-Config",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w400,
-                    fontSize: 18,
-                    color: Colors.blueGrey[900],
-                  ),
-                ),
+                label: Text("WIFI-Config", style: AppTextStyles.drawerList),
                 icon: Icon(Icons.router, size: 25, color: Colors.blueGrey[900]),
               ),
             ),
@@ -116,14 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: () {
                   Get.to(() => const ConfigurationPage());
                 },
-                label: Text(
-                  "DEVICE LIST",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w400,
-                    fontSize: 18,
-                    color: Colors.blueGrey[900],
-                  ),
-                ),
+                label: Text("DEVICE LIST", style: AppTextStyles.drawerList),
                 icon: Icon(Icons.list, size: 25, color: Colors.blueGrey[900]),
               ),
             ),
@@ -143,14 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     authController,
                   ); // ✅ Navigate to log
                 },
-                label: Text(
-                  "LogOut",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w400,
-                    fontSize: 20,
-                    color: Colors.blueGrey[900],
-                  ),
-                ),
+                label: Text("LogOut", style: AppTextStyles.drawerList),
                 icon: Icon(Icons.logout, size: 25, color: Colors.redAccent),
               ),
             ),
@@ -159,13 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
 
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: BoxDecoration(gradient: AppGradients.loginBackground),
         child: Obx(() {
           if (deviceController.devices.isEmpty) {
             return Center(child: Text("No devices found"));
@@ -205,15 +149,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                   padding: const EdgeInsets.only(left: 12),
                                   child: Text(
                                     roomName, // ✅ Display Room Name
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w400,
-                                      color: Colors.blueGrey[900],
-                                    ),
+                                    style: AppTextStyles.drawerList,
                                   ),
                                 ),
                                 Switch(
-                                  activeTrackColor: Colors.green.shade200,
+                                  activeTrackColor: AppColors.success,
                                   value: isRoomOn,
                                   onChanged: (value) {
                                     _toggleRoomDevices(
@@ -255,11 +195,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 child: Card(
                                   color:
                                       device.state.value
-                                          ? Colors.green.shade200
-                                          : Colors.white,
+                                          ? AppColors.success
+                                          : AppColors.cardBackground,
                                   elevation: 4,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: AppRadius.card,
                                   ),
                                   child: Center(
                                     child: Column(
@@ -285,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           SizedBox(height: 20),
                           Divider(
-                            color: Colors.blueGrey[400],
+                            color: AppColors.devider,
                             indent: 2,
                             endIndent: 2,
                           ),

@@ -3,9 +3,10 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'device.dart';
-import 'device_controller.dart';
-import 'mqtt_service.dart';
+import 'package:home_automation/core/widgets/theme.dart';
+import '../device/device.dart';
+import '../../core/services/device_controller.dart';
+import '../../core/services/mqtt_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ScenesPage extends StatefulWidget {
@@ -336,8 +337,8 @@ class _ScenesPageState extends State<ScenesPage> {
             value: data["sliderValue"],
             onChanged: (val) => setState(() => data["sliderValue"] = val),
             min: 0,
-            max: 100,
-            divisions: 100,
+            max: 90,
+            divisions: 90,
             label: (data["sliderValue"]).toInt().toString(),
           ),
         if (device.type == "RGB")
@@ -376,18 +377,15 @@ class _ScenesPageState extends State<ScenesPage> {
         title: const Text("Scenes"),
         backgroundColor: Colors.transparent,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddSceneDialog,
-        child: const Icon(Icons.add),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 75, right: 15),
+        child: FloatingActionButton(
+          onPressed: _showAddSceneDialog,
+          child: const Icon(Icons.add),
+        ),
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: BoxDecoration(gradient: AppGradients.loginBackground),
         child:
             scenes.isEmpty
                 ? const Center(child: Text("No scenes found"))
@@ -396,17 +394,22 @@ class _ScenesPageState extends State<ScenesPage> {
                   itemBuilder: (context, index) {
                     final scene = scenes[index];
                     return Padding(
-                      padding: const EdgeInsets.all(8.0),
+                      padding: const EdgeInsets.all(6.0),
                       child: InkWell(
                         onTap: () {
                           _toggleScene(scene, !scene["active"]);
                         },
-                        child: ListTile(
-                          tileColor: Colors.amber[100],
-                          title: Text(scene["sceneName"]),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.edit),
-                            onPressed: () => _showEditSceneDialog(scene),
+                        child: Card(
+                          child: ListTile(
+                            tileColor: AppColors.tileBackground,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: AppRadius.button,
+                            ),
+                            title: Text(scene["sceneName"]),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.edit),
+                              onPressed: () => _showEditSceneDialog(scene),
+                            ),
                           ),
                         ),
                       ),

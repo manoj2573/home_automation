@@ -5,8 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:get/get.dart';
 import 'dart:convert';
 
-import 'device.dart';
-import 'device_controller.dart';
+import 'features/device/device.dart';
+import 'core/services/device_controller.dart';
 
 class WiFiProvisionDialog extends StatefulWidget {
   const WiFiProvisionDialog({super.key});

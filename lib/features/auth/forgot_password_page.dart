@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'auth_controller.dart';
+import '../../core/services/auth_controller.dart';
 
 class ForgotPasswordPage extends StatelessWidget {
   final AuthController authController = Get.find();

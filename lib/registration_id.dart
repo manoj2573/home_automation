@@ -2,9 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:home_automation/mqtt_service.dart';
-import 'package:home_automation/wifi_status_dialog.dart';
-import 'device_controller.dart';
+import 'package:home_automation/core/services/mqtt_service.dart';
+import 'package:home_automation/core/widgets/theme.dart';
+import 'package:home_automation/features/wifi/wifi_status_dialog.dart';
+import 'core/services/device_controller.dart';
 
 class ConfigurationPage extends StatelessWidget {
   const ConfigurationPage({super.key});
@@ -20,13 +21,7 @@ class ConfigurationPage extends StatelessWidget {
         backgroundColor: Colors.transparent,
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: BoxDecoration(gradient: AppGradients.loginBackground),
         child: Obx(() {
           if (deviceController.devices.isEmpty) {
             return const Center(child: Text('No devices found'));
@@ -73,15 +68,9 @@ class ConfigurationPage extends StatelessWidget {
 
                   child: Card(
                     margin: const EdgeInsets.only(bottom: 12),
-                    color: Colors.amber[100],
+                    color: AppColors.tileBackground,
                     child: ListTile(
-                      title: Text(
-                        registrationId,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.blueGrey[900],
-                        ),
-                      ),
+                      title: Text(registrationId, style: AppTextStyles.label),
                     ),
                   ),
                 );

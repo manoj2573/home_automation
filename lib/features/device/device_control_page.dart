@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:home_automation/schedule_dialog.dart';
-import 'device_controller.dart';
-import 'mqtt_service.dart';
+import 'package:home_automation/core/widgets/theme.dart';
+import 'package:home_automation/features/schedule/schedule_dialog.dart';
+import '../../core/services/device_controller.dart';
+import '../../core/services/mqtt_service.dart';
 import 'device.dart';
 import 'settings_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -286,20 +287,14 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
       appBar: AppBar(
         title: Text(
           '${widget.device.name} Controls',
-          style: TextStyle(color: Colors.blueGrey[900]),
+          style: AppTextStyles.title,
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
       body: Container(
         height: MediaQuery.of(context).size.height * 1,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFE29E), Color.fromARGB(255, 222, 114, 5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: BoxDecoration(gradient: AppGradients.loginBackground),
         child: SafeArea(
           child: FutureBuilder(
             future: _loadFuture,
@@ -314,14 +309,14 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
 
   Widget _buildDeviceControlUI(DeviceController deviceController) {
     return Padding(
-      padding: EdgeInsets.all(16),
+      padding: AppPadding.page,
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
               '${widget.device.name} is ${widget.device.state.value ? 'On' : 'Off'}',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
+              style: AppTextStyles.subtitle,
             ),
             if (widget.device.type == "On/Off")
               Column(
@@ -336,11 +331,11 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                     child: Card(
                       color:
                           widget.device.state.value
-                              ? Colors.green.shade200
-                              : Colors.white,
+                              ? AppColors.success
+                              : AppColors.cardBackground,
                       elevation: 4,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: AppRadius.card,
                       ),
                       child: Column(
                         children: [
@@ -378,11 +373,11 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                     child: Card(
                       color:
                           widget.device.state.value
-                              ? Colors.green.shade200
-                              : Colors.white,
+                              ? AppColors.success
+                              : AppColors.cardBackground,
                       elevation: 4,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: AppRadius.card,
                       ),
                       child: Column(
                         children: [
@@ -425,8 +420,9 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Text('Pick Color', style: TextStyle(fontSize: 15)),
+                  Text('Pick Color', style: AppTextStyles.label),
                   Switch(
+                    activeTrackColor: AppColors.success,
                     value: widget.device.state.value,
                     onChanged: (value) {
                       final deviceController = Get.find<DeviceController>();
@@ -459,16 +455,14 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                   child: Card(
                     margin: EdgeInsets.all(10),
                     elevation: 4,
-                    color: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                    color: AppColors.cardBackground,
+                    shape: RoundedRectangleBorder(borderRadius: AppRadius.card),
                     child: Column(
                       children: [
                         Icon(
                           Icons.settings,
                           size: 80,
-                          color: Color.fromARGB(255, 216, 129, 41),
+                          color: AppColors.primary,
                         ),
                       ],
                     ),
@@ -482,16 +476,14 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
                   child: Card(
                     margin: EdgeInsets.all(10),
                     elevation: 4,
-                    color: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                    color: AppColors.cardBackground,
+                    shape: RoundedRectangleBorder(borderRadius: AppRadius.card),
                     child: Column(
                       children: [
                         Icon(
                           Icons.calendar_month,
                           size: 80,
-                          color: Color.fromARGB(255, 216, 129, 41),
+                          color: AppColors.primary,
                         ),
                       ],
                     ),

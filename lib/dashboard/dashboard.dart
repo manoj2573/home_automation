@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:home_automation/home_screen.dart';
-import 'package:home_automation/scenes_page.dart';
+import 'package:home_automation/features/scenes/scenes_page.dart';
 
 class MyDashboard extends StatefulWidget {
   const MyDashboard({super.key});

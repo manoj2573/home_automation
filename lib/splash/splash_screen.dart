@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:home_automation/dashboard.dart';
-import 'package:home_automation/login_page.dart';
+import 'package:home_automation/dashboard/dashboard.dart';
+import 'package:home_automation/features/auth/login_page.dart';
 import 'package:shimmer/shimmer.dart';
-import 'auth_controller.dart';
+import '../core/services/auth_controller.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
