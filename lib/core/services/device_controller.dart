@@ -18,6 +18,9 @@ class DeviceController extends GetxController {
     super.onInit();
     print("🔄 DeviceController Initialized");
     loadDevices();
+    Future.delayed(Duration(seconds: 3), () {
+      requestWifiStatus();
+    });
   }
 
   void _onMqttMessageReceived(String topic, String message) {
@@ -25,36 +28,27 @@ class DeviceController extends GetxController {
 
     try {
       Map<String, dynamic> data = jsonDecode(message);
-      String deviceId = topic.split('/')[0]; // ✅ Extract deviceId
+
+      // ✅ Extract registrationId from payload
       String? registrationId = data["registrationId"];
 
-      if (!data.containsKey("deviceId") || data["deviceId"] != deviceId) {
-        print("⚠️ MQTT Message Ignored: No matching deviceId found");
-        return;
-      }
+      // ✅ Handle device-specific state update
+      String deviceId = data["deviceId"] ?? topic.split('/')[0];
 
-      // ✅ Find the correct device using deviceId
       int index = devices.indexWhere(
         (device) =>
-            device.registrationId == registrationId &&
-            device.deviceId == deviceId,
+            device.deviceId == deviceId &&
+            device.registrationId == registrationId,
       );
 
       if (index != -1) {
         devices[index].state.value = data["state"];
         devices[index].sliderValue?.value =
-            data["sliderValue"]?.toDouble() ??
-            devices[index].sliderValue?.value ??
-            0;
+            (data["sliderValue"]?.toDouble()) ?? 0;
         devices[index].color = data["color"] ?? devices[index].color;
 
-        devices.refresh();
-        print("🔄 Home UI Updated for ${devices[index].name}");
-
-        // ✅ Update Firestore
         _updateFirestore(devices[index]);
-      } else {
-        print("⚠️ No matching device found for deviceId: $deviceId");
+        print("🔄 Updated UI and Firestore for ${devices[index].name}");
       }
     } catch (e) {
       print("❌ Error decoding MQTT message: $e");
@@ -63,7 +57,6 @@ class DeviceController extends GetxController {
 
   void _updateFirestore(Device device) async {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     try {
       await firestore
@@ -93,7 +86,6 @@ class DeviceController extends GetxController {
   // ✅ Load Devices for the Logged-in User
   void loadDevices() async {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     firestore
         .collection("users")
@@ -119,6 +111,7 @@ class DeviceController extends GetxController {
                 // ✅ Subscribe to device topic if MQTT is connected
                 if (MqttService.isConnected) {
                   MqttService.subscribe("${device.deviceId}/mobile");
+                  MqttService.subscribe("${device.registrationId}/mobile");
                   print("✅ Subscribed to ${device.deviceId}/mobile (on load)");
                 }
 
@@ -134,7 +127,6 @@ class DeviceController extends GetxController {
   // ✅ Add Device for the Logged-in User
   Future<void> addDevice(Device device) async {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     await firestore
         .collection("users")
@@ -167,11 +159,9 @@ class DeviceController extends GetxController {
 
   // ✅ Toggle Device State and Update Firestore
   void toggleDeviceState(Device device) async {
-    device.state.value = !device.state.value;
     devices.refresh();
 
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     await firestore
         .collection("users")
@@ -187,7 +177,7 @@ class DeviceController extends GetxController {
       "deviceId": device.deviceId,
       "deviceName": device.name,
       "deviceType": device.type,
-      "state": device.state.value,
+      "state": !device.state.value,
 
       "sliderValue": intSliderValue,
       'color': device.color,
@@ -205,7 +195,6 @@ class DeviceController extends GetxController {
   // ✅ Update Device Icon for the Logged-in User
   void updateDeviceIcon(String deviceId, String newIconPath) async {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     int index = devices.indexWhere((d) => d.deviceId == deviceId);
     if (index != -1) {
@@ -223,7 +212,6 @@ class DeviceController extends GetxController {
 
   void updateDeviceName(String deviceId, String newDeviceName) async {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     int index = devices.indexWhere((d) => d.deviceId == deviceId);
     if (index != -1) {
@@ -242,7 +230,6 @@ class DeviceController extends GetxController {
   // ✅ Delete Device for the Logged-in User
   void removeDevice(Device device) async {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     await firestore
         .collection("users")
@@ -255,7 +242,6 @@ class DeviceController extends GetxController {
 
   void updateDeviceRoom(String deviceId, String newRoom) async {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
     int index = devices.indexWhere((d) => d.deviceId == deviceId);
     if (index != -1) {
       devices[index].roomName = newRoom;
@@ -273,6 +259,22 @@ class DeviceController extends GetxController {
           .catchError((error) {
             print("Failed to update room: $error");
           });
+    }
+  }
+
+  void requestWifiStatus() {
+    final registrationIds = devices.map((d) => d.registrationId).toSet();
+
+    for (final regId in registrationIds) {
+      final topic = "$regId/device";
+      final payload = jsonEncode({"command": "wifiStatus"});
+
+      if (MqttService.isConnected) {
+        MqttService.publish(topic, payload);
+        print("🔄 Requested Wi-Fi status on $topic");
+      } else {
+        print("❌ MQTT not connected. Cannot send Wi-Fi status request.");
+      }
     }
   }
 }

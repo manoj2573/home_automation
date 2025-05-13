@@ -32,7 +32,6 @@ class _ScenesPageState extends State<ScenesPage> {
   void _loadScenes() {
     print("📡 Listening for scenes...");
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     firestore
         .collection("users")
@@ -69,41 +68,44 @@ class _ScenesPageState extends State<ScenesPage> {
       Device? device = deviceController.devices.firstWhereOrNull(
         (d) => d.deviceId == deviceData["deviceId"],
       );
-      if (device != null) {
-        // Update device state
-        device.state.value = deviceData["state"] ?? false;
-        device.sliderValue?.value = deviceData["sliderValue"]?.toDouble() ?? 0;
-        device.color = deviceData["color"] ?? device.color;
 
-        deviceController.devices.refresh();
+      if (device == null) {
+        print("⚠️ Device ${deviceData["deviceId"]} not found in controller");
+        continue; // Skip this device
+      }
 
-        Map<String, dynamic> payload = {
-          "deviceId": device.deviceId,
-          "state": device.state.value,
-          "sliderValue": device.sliderValue?.value ?? 0,
-          "color": device.color,
-          "registrationId": device.registrationId,
-          "roomName": device.roomName,
-        };
+      // ✅ Now safe to access device properties
+      device.state.value = deviceData["state"] ?? false;
+      device.sliderValue?.value = deviceData["sliderValue"]?.toDouble() ?? 0;
+      device.color = deviceData["color"] ?? device.color;
 
-        if (MqttService.isConnected) {
-          MqttService.publish("${device.deviceId}/device", jsonEncode(payload));
-        }
+      deviceController.devices.refresh();
 
-        // Update Firestore
-        String? uid = auth.currentUser?.uid;
-        if (uid != null) {
-          await firestore
-              .collection("users")
-              .doc(uid)
-              .collection("devices")
-              .doc(device.deviceId)
-              .update({
-                "state": device.state.value,
-                "sliderValue": device.sliderValue?.value ?? 0,
-                "color": device.color,
-              });
-        }
+      Map<String, dynamic> payload = {
+        "deviceId": device.deviceId,
+        "state": device.state.value,
+        "sliderValue": device.sliderValue?.value ?? 0,
+        "color": device.color,
+        "registrationId": device.registrationId,
+        "roomName": device.roomName,
+      };
+
+      if (MqttService.isConnected) {
+        MqttService.publish("${device.deviceId}/device", jsonEncode(payload));
+      }
+
+      String? uid = auth.currentUser?.uid;
+      if (uid != null) {
+        await firestore
+            .collection("users")
+            .doc(uid)
+            .collection("devices")
+            .doc(device.deviceId)
+            .update({
+              "state": device.state.value,
+              "sliderValue": device.sliderValue?.value ?? 0,
+              "color": device.color,
+            });
       }
     }
 
@@ -303,7 +305,6 @@ class _ScenesPageState extends State<ScenesPage> {
     }
 
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     await firestore
         .collection("users")
@@ -337,8 +338,8 @@ class _ScenesPageState extends State<ScenesPage> {
             value: data["sliderValue"],
             onChanged: (val) => setState(() => data["sliderValue"] = val),
             min: 0,
-            max: 90,
-            divisions: 90,
+            max: 100,
+            divisions: 100,
             label: (data["sliderValue"]).toInt().toString(),
           ),
         if (device.type == "RGB")
@@ -359,7 +360,6 @@ class _ScenesPageState extends State<ScenesPage> {
     }
 
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     await firestore.collection("users").doc(uid).collection("scenes").add({
       "sceneName": sceneName,

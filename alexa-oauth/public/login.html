@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login</title>
+</head>
+<body>
+  <h2>Alexa Login</h2>
+  <form method="POST" action="/login">
+    <input name="email" placeholder="Email" required />
+    <input name="password" placeholder="Password" type="password" required />
+    <input name="client_id" type="hidden" value="sample-client-id" />
+    <input name="redirect_uri" type="hidden" value="https://your-skill.redirect/handler" />
+    <input name="state" type="hidden" value="SOME_STATE_STRING" />
+    <button type="submit">Login</button>
+  </form>
+</body>
+</html>

@@ -134,7 +134,7 @@ class _WiFiProvisionDialogState extends State<WiFiProvisionDialog> {
                     decoration: const InputDecoration(
                       labelText: "Wi-Fi Password",
                     ),
-                    obscureText: true,
+                    obscureText: false,
                   ),
                   TextField(
                     controller: roomController,

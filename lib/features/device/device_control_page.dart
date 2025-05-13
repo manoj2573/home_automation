@@ -57,7 +57,6 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
 
   void _listenToDeviceUpdates() {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     firestore
         .collection("users")
@@ -128,20 +127,18 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
 
       // ✅ Update Firestore
       String? uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid != null) {
-        Map<String, dynamic> updateData = {"state": newState};
-        if (newSliderValue != null) updateData["sliderValue"] = newSliderValue;
-        if (newColor != null) updateData["color"] = newColor;
+      Map<String, dynamic> updateData = {"state": newState};
+      if (newSliderValue != null) updateData["sliderValue"] = newSliderValue;
+      if (newColor != null) updateData["color"] = newColor;
 
-        FirebaseFirestore.instance
-            .collection("users")
-            .doc(uid)
-            .collection("devices")
-            .doc(deviceId)
-            .update(updateData)
-            .then((_) => print("✅ Firestore Updated for $deviceId"))
-            .catchError((error) => print("❌ Firestore Update Failed: $error"));
-      }
+      FirebaseFirestore.instance
+          .collection("users")
+          .doc(uid)
+          .collection("devices")
+          .doc(deviceId)
+          .update(updateData)
+          .then((_) => print("✅ Firestore Updated for $deviceId"))
+          .catchError((error) => print("❌ Firestore Update Failed: $error"));
       _updateFirestore;
     } catch (e) {
       print("❌ Error decoding MQTT message: $e");
@@ -150,7 +147,6 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
 
   void _updateFirestore(Map<String, dynamic> data) async {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     try {
       await firestore
@@ -176,7 +172,6 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
     });
 
     String? uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
 
     String hexColor = _colorToHex(color); // ✅ Convert color to HEX format
 
@@ -257,17 +252,15 @@ class _DeviceControlPageState extends State<DeviceControlPage> {
     }
 
     String? uid = auth.currentUser?.uid;
-    if (uid != null) {
-      FirebaseFirestore.instance
-          .collection("users")
-          .doc(uid)
-          .collection("devices")
-          .doc(widget.device.deviceId)
-          .update({
-            "state": widget.device.state.value,
-            "sliderValue": _currentValue,
-          });
-    }
+    FirebaseFirestore.instance
+        .collection("users")
+        .doc(uid)
+        .collection("devices")
+        .doc(widget.device.deviceId)
+        .update({
+          "state": widget.device.state.value,
+          "sliderValue": _currentValue,
+        });
   }
 
   String _colorToHex(Color color) {

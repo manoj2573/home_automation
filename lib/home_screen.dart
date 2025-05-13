@@ -30,6 +30,15 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text("SMART HOME", style: AppTextStyles.appBar),
         backgroundColor: Colors.transparent,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh, color: Colors.white),
+            onPressed: () {
+              final deviceController = Get.find<DeviceController>();
+              deviceController.requestWifiStatus(); // 🔄 Send status request
+            },
+          ),
+        ],
       ),
       drawer: Drawer(
         width: MediaQuery.of(context).size.width * 0.65,
@@ -181,42 +190,46 @@ class _HomeScreenState extends State<HomeScreen> {
                             itemBuilder: (context, index) {
                               final device = devices[index];
 
-                              return GestureDetector(
-                                onTap: () {
-                                  deviceController.toggleDeviceState(device);
-                                },
-                                onLongPress: () async {
-                                  await Get.to(
-                                    () => DeviceControlPage(device: device),
-                                  );
-                                  deviceController
-                                      .loadDevices(); // Refresh on return
-                                },
-                                child: Card(
-                                  color:
-                                      device.state.value
-                                          ? AppColors.success
-                                          : AppColors.cardBackground,
-                                  elevation: 4,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: AppRadius.card,
-                                  ),
-                                  child: Center(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Image.asset(
-                                          device.iconPath,
-                                          width: 40,
-                                          height: 40,
-                                        ),
-                                        SizedBox(height: 10),
-                                        Text(
-                                          device.name,
-                                          textAlign: TextAlign.center,
-                                        ),
-                                        Text(device.state.value ? 'On' : 'Off'),
-                                      ],
+                              return Obx(
+                                () => GestureDetector(
+                                  onTap:
+                                      () => deviceController.toggleDeviceState(
+                                        device,
+                                      ),
+
+                                  onLongPress:
+                                      () => Get.to(
+                                        () => DeviceControlPage(device: device),
+                                      ),
+
+                                  child: Card(
+                                    color:
+                                        device.state.value
+                                            ? AppColors.success
+                                            : AppColors.cardBackground,
+                                    elevation: 4,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: AppRadius.card,
+                                    ),
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Image.asset(
+                                            device.iconPath,
+                                            width: 40,
+                                            height: 40,
+                                          ),
+                                          SizedBox(height: 10),
+                                          Text(
+                                            device.name,
+                                            textAlign: TextAlign.center,
+                                          ),
+                                          Text(
+                                            device.state.value ? 'On' : 'Off',
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),

@@ -33,7 +33,6 @@ class _ScheduleDialogPageState extends State<ScheduleDialogPage> {
 
   void _loadSchedules() {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     firestore
         .collection("users")
@@ -196,7 +195,6 @@ class _ScheduleDialogPageState extends State<ScheduleDialogPage> {
 
   void _saveSchedule() {
     String? uid = auth.currentUser?.uid;
-    if (uid == null) return;
 
     List<int> selectedDaysList = [];
     for (int i = 0; i < selectedDays.length; i++) {
