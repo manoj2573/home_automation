@@ -19,9 +19,29 @@ app.use(express.static("public"));
 
 // OAuth2 authorization endpoint
 app.get("/authorize", (req, res) => {
-  const { client_id, redirect_uri, state, response_type } = req.query;
-  res.sendFile(path.join(__dirname, "public", "login.html"));
-});
+    const { client_id, redirect_uri, state } = req.query;
+  
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><title>Alexa Login</title></head>
+      <body>
+        <h2>Alexa Login</h2>
+        <form method="POST" action="/login">
+          <input name="email" placeholder="Email" required />
+          <input name="password" placeholder="Password" type="password" required />
+          <input type="hidden" name="client_id" value="${client_id}" />
+          <input type="hidden" name="redirect_uri" value="${redirect_uri}" />
+          <input type="hidden" name="state" value="${state}" />
+          <button type="submit">Login</button>
+        </form>
+      </body>
+      </html>
+    `;
+  
+    res.send(html);
+  });
+  
 
 // Login form POST
 app.post("/login", async (req, res) => {
