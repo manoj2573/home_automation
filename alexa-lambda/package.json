@@ -1,0 +1,10 @@
+{
+    "name": "alexa-lambda",
+    "version": "1.0.0",
+    "main": "index.js",
+    "dependencies": {
+      "firebase-admin": "^11.10.1",
+      "aws-iot-device-sdk": "^2.2.13"
+    }
+  }
+  

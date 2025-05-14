@@ -1,68 +1,72 @@
 const express = require("express");
 const admin = require("firebase-admin");
 const bodyParser = require("body-parser");
-const cookieParser = require("cookie-parser");
 const path = require("path");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-// Initialize Firebase Admin SDK
+// === Firebase Admin Setup ===
 const serviceAccount = require("./serviceAccountKey.json");
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
+const auth = admin.auth();
 
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser());
 app.use(express.static("public"));
 
-// OAuth2 authorization endpoint
+// === /authorize ===
 app.get("/authorize", (req, res) => {
-    const { client_id, redirect_uri, state } = req.query;
-  
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head><title>Alexa Login</title></head>
-      <body>
-        <h2>Alexa Login</h2>
-        <form method="POST" action="/login">
-          <input name="email" placeholder="Email" required />
-          <input name="password" placeholder="Password" type="password" required />
-          <input type="hidden" name="client_id" value="${client_id}" />
-          <input type="hidden" name="redirect_uri" value="${redirect_uri}" />
-          <input type="hidden" name="state" value="${state}" />
-          <button type="submit">Login</button>
-        </form>
-      </body>
-      </html>
-    `;
-  
-    res.send(html);
-  });
-  
+  const { client_id, redirect_uri, state } = req.query;
 
-// Login form POST
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><title>Alexa Login</title></head>
+    <body>
+      <h2>Alexa Login</h2>
+      <form method="POST" action="/login">
+        <input name="email" placeholder="Email" required />
+        <input name="password" type="password" placeholder="Password" required />
+        <input type="hidden" name="client_id" value="${client_id}" />
+        <input type="hidden" name="redirect_uri" value="${redirect_uri}" />
+        <input type="hidden" name="state" value="${state}" />
+        <button type="submit">Login</button>
+      </form>
+    </body>
+    </html>
+  `;
+  res.send(html);
+});
+
+// === /login ===
 app.post("/login", async (req, res) => {
   const { email, password, client_id, redirect_uri, state } = req.body;
 
   try {
-    const user = await admin.auth().getUserByEmail(email);
+    // Check user exists in Firebase (password not checked here)
+    const user = await auth.getUserByEmail(email);
 
-    // Optionally verify password with your own DB system (Firebase Admin doesn't support password auth directly)
+    // Generate clean, URL-safe code
+    const codeRaw = `${Date.now()}_${email}`;
+    const code = Buffer.from(codeRaw).toString("base64").replace(/=/g, "");
 
-    const code = Buffer.from(`${email}:${client_id}`).toString("base64");
+    // Construct safe redirect URI
+    const url = new URL(redirect_uri);
+    url.searchParams.set("code", code);
+    url.searchParams.set("state", state);
 
-    const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
-    res.redirect(redirectUrl);
+    console.log("✅ Redirecting to:", url.toString());
+    res.redirect(url.toString());
   } catch (error) {
+    console.error("❌ Login error:", error.message);
     res.send("Login failed: " + error.message);
   }
 });
 
-// Token exchange endpoint
-app.post("/token", async (req, res) => {
+// === /token ===
+app.post("/token", (req, res) => {
   const { code, grant_type } = req.body;
 
   if (grant_type !== "authorization_code") {
@@ -71,23 +75,24 @@ app.post("/token", async (req, res) => {
 
   try {
     const decoded = Buffer.from(code, "base64").toString("utf8");
-    const [email, clientId] = decoded.split(":");
+    const email = decoded.split("_")[1];
 
-    const access_token = Buffer.from(`${email}:${Date.now()}`).toString("base64");
-    const refresh_token = Buffer.from(`${email}:refresh`).toString("base64");
+    const access_token = Buffer.from(`${email}:${Date.now()}`).toString("base64").replace(/=/g, "");
+    const refresh_token = Buffer.from(`${email}:refresh`).toString("base64").replace(/=/g, "");
 
     res.json({
-      token_type: "Bearer",
       access_token,
-      refresh_token,
+      token_type: "Bearer",
       expires_in: 3600,
+      refresh_token,
     });
   } catch (error) {
+    console.error("❌ Token exchange failed:", error.message);
     res.status(400).json({ error: "invalid_grant" });
   }
 });
 
-// Refresh token endpoint
+// === /refresh ===
 app.post("/refresh", (req, res) => {
   const { refresh_token, grant_type } = req.body;
 
@@ -95,16 +100,24 @@ app.post("/refresh", (req, res) => {
     return res.status(400).json({ error: "unsupported_grant_type" });
   }
 
-  const email = Buffer.from(refresh_token, "base64").toString("utf8").split(":")[0];
-  const new_access_token = Buffer.from(`${email}:${Date.now()}`).toString("base64");
+  try {
+    const decoded = Buffer.from(refresh_token, "base64").toString("utf8");
+    const email = decoded.split(":")[0];
 
-  res.json({
-    token_type: "Bearer",
-    access_token: new_access_token,
-    expires_in: 3600,
-  });
+    const new_access_token = Buffer.from(`${email}:${Date.now()}`).toString("base64").replace(/=/g, "");
+
+    res.json({
+      access_token: new_access_token,
+      token_type: "Bearer",
+      expires_in: 3600,
+    });
+  } catch (error) {
+    console.error("❌ Refresh token error:", error.message);
+    res.status(400).json({ error: "invalid_refresh_token" });
+  }
 });
 
+// === Start Server ===
 app.listen(PORT, () => {
   console.log(`🚀 OAuth Server running at http://localhost:${PORT}`);
 });
