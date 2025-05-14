@@ -42,28 +42,21 @@ app.get("/authorize", (req, res) => {
 
 // === /login ===
 app.post("/login", async (req, res) => {
-  const { email, password, client_id, redirect_uri, state } = req.body;
+  const { email, client_id, redirect_uri, state } = req.body;
 
-  try {
-    // Check user exists in Firebase (password not checked here)
-    const user = await auth.getUserByEmail(email);
+  // Generate safe, valid code
+  const codeRaw = `${Date.now()}_${email}`;
+  const code = Buffer.from(codeRaw).toString("base64").replace(/=/g, "");
 
-    // Generate clean, URL-safe code
-    const codeRaw = `${Date.now()}_${email}`;
-    const code = Buffer.from(codeRaw).toString("base64").replace(/=/g, "");
+  // Safe redirect
+  const url = new URL(redirect_uri);
+  url.searchParams.set("code", code);
+  url.searchParams.set("state", state);
 
-    // Construct safe redirect URI
-    const url = new URL(redirect_uri);
-    url.searchParams.set("code", code);
-    url.searchParams.set("state", state);
-
-    console.log("✅ Redirecting to:", url.toString());
-    res.redirect(url.toString());
-  } catch (error) {
-    console.error("❌ Login error:", error.message);
-    res.send("Login failed: " + error.message);
-  }
+  console.log("✅ Login bypassed check. Redirecting to:", url.toString());
+  return res.redirect(url.toString());
 });
+
 
 // === /token ===
 app.post("/token", (req, res) => {
