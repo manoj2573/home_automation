@@ -15,6 +15,48 @@ const firestore = admin.firestore();
 console.log("🧾 Firebase initialized with project:", admin.app().options.projectId);
 
 // === MQTT Init ===
+const mqttClient = awsIot.device({
+  keyPath: './private.pem.key',
+  certPath: './certificate.pem.crt',
+  caPath: './rootCA.crt',
+  clientId: 'alexa-skill',
+  host: 'anqg66n1fr3hi-ats.iot.eu-west-1.amazonaws.com',
+});
+
+mqttClient.on('connect', () => {
+  console.log('✅ Connected to AWS IoT Core');
+  mqttClient.subscribe('+/mobile');
+});
+
+function sendToDevice(deviceId, payload) {
+  mqttClient.publish(`${deviceId}/device`, JSON.stringify(payload));
+  console.log(`📤 Published to ${deviceId}/device:`, payload);
+}
+
+function postToAlexaGateway(event, token) {
+  const options = {
+    hostname: 'api.eu.amazonalexa.com',
+    path: '/v3/events',
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  };
+
+  const req = https.request(options, (res) => {
+    console.log(`📡 Alexa Event Gateway response: ${res.statusCode}`);
+    res.on('data', d => process.stdout.write(d));
+  });
+
+  req.on('error', (e) => {
+    console.error(`❌ Error posting to Alexa Event Gateway: ${e}`);
+  });
+
+  req.write(JSON.stringify(event));
+  req.end();
+}
+
 mqttClient.on('message', async (topic, message) => {
   const payload = JSON.parse(message.toString());
   const endpointId = topic.split('/')[0];
@@ -45,16 +87,6 @@ mqttClient.on('message', async (topic, message) => {
         brightness: hsv[2] / 100
       }
     });
-  }
-
-  // 🔍 Get Alexa access token for user
-  const registrationId = payload.registrationId;
-  const tokenDoc = await firestore.collection('users').doc(registrationId).collection('alexa').doc('token').get();
-  const token = tokenDoc.exists ? tokenDoc.data().access_token : null;
-
-  if (!token) {
-    console.error("❌ No Alexa token found for user:", registrationId);
-    return;
   }
 
   for (const report of reports) {
@@ -92,10 +124,27 @@ mqttClient.on('message', async (topic, message) => {
     };
 
     console.log("📤 Alexa ChangeReport:", JSON.stringify(changeEvent, null, 2));
-    postToAlexaGateway(changeEvent, token);
+
+    const userSnap = await firestore.collection('users')
+  .where('registrationId', '==', payload.registrationId)
+  .limit(1)
+  .get();
+
+if (userSnap.empty) {
+  console.warn(`⚠️ No user found with registrationId: ${payload.registrationId}`);
+  return;
+}
+
+const token = userSnap.docs[0].data().access_token;
+if (!token) {
+  console.warn(`⚠️ No access token stored for registrationId: ${payload.registrationId}`);
+  return;
+}
+
+postToAlexaGateway(changeEvent, token);
+
   }
 });
-
 
 
 exports.handler = async (event) => {
