@@ -125,8 +125,24 @@ mqttClient.on('message', async (topic, message) => {
 
     console.log("📤 Alexa ChangeReport:", JSON.stringify(changeEvent, null, 2));
 
-    const token = 'replace-with-valid-access-token'; // Replace this with valid token
-    postToAlexaGateway(changeEvent, token);
+    const userSnap = await firestore.collection('users')
+  .where('registrationId', '==', payload.registrationId)
+  .limit(1)
+  .get();
+
+if (userSnap.empty) {
+  console.warn(`⚠️ No user found with registrationId: ${payload.registrationId}`);
+  return;
+}
+
+const token = userSnap.docs[0].data().access_token;
+if (!token) {
+  console.warn(`⚠️ No access token stored for registrationId: ${payload.registrationId}`);
+  return;
+}
+
+postToAlexaGateway(changeEvent, token);
+
   }
 });
 

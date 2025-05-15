@@ -6,14 +6,24 @@
 <body>
   <h2>Login</h2>
   <form method="POST" action="/login">
-    <input type="hidden" name="redirect_uri" value="{{redirect_uri}}">
-    <input type="hidden" name="state" value="{{state}}">
-    <input type="hidden" name="client_id" value="{{client_id}}">
+    <input type="hidden" name="redirect_uri" id="redirect_uri">
+    <input type="hidden" name="state" id="state">
+    <input type="hidden" name="client_id" id="client_id">
+
     <label>Email:</label><br>
-    <input type="email" name="email"><br>
+    <input type="email" name="email" required><br>
     <label>Password:</label><br>
-    <input type="password" name="password"><br><br>
+    <input type="password" name="password" required><br><br>
+
     <input type="submit" value="Login">
   </form>
+
+  <script>
+    // Parse query params and populate hidden fields
+    const params = new URLSearchParams(window.location.search);
+    document.getElementById("redirect_uri").value = params.get("redirect_uri") || "";
+    document.getElementById("state").value = params.get("state") || "";
+    document.getElementById("client_id").value = params.get("client_id") || "";
+  </script>
 </body>
 </html>
