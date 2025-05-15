@@ -1,116 +1,93 @@
-const express = require("express");
-const admin = require("firebase-admin");
-const bodyParser = require("body-parser");
-const path = require("path");
-
+// === index.js (Main Express App) ===
+const express = require('express');
+const bodyParser = require('body-parser');
+const admin = require('firebase-admin');
+const fs = require('fs');
+const path = require('path');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// === Firebase Admin Setup ===
-const serviceAccount = require("./serviceAccountKey.json");
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+  credential: admin.credential.cert(require('./serviceAccountKey.json'))
 });
-const auth = admin.auth();
 
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static("public"));
+app.use(bodyParser.json());
+app.use(express.static('public'));
 
-// === /authorize ===
-app.get("/authorize", (req, res) => {
-  const { client_id, redirect_uri, state } = req.query;
+const authCodes = new Map();
+const accessTokens = new Map();
 
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head><title>Alexa Login</title></head>
-    <body>
-      <h2>Alexa Login</h2>
-      <form method="POST" action="/login">
-        <input name="email" placeholder="Email" required />
-        <input name="password" type="password" placeholder="Password" required />
-        <input type="hidden" name="client_id" value="${client_id}" />
-        <input type="hidden" name="redirect_uri" value="${redirect_uri}" />
-        <input type="hidden" name="state" value="${state}" />
-        <button type="submit">Login</button>
-      </form>
-    </body>
-    </html>
-  `;
+app.get('/login', (req, res) => {
+  const { redirect_uri, state, client_id } = req.query;
+  const htmlPath = path.join(__dirname, 'public', 'login.html');
+  let html = fs.readFileSync(htmlPath, 'utf8');
+  html = html.replace('{{redirect_uri}}', redirect_uri)
+             .replace('{{state}}', state)
+             .replace('{{client_id}}', client_id);
   res.send(html);
 });
 
-// === /login ===
-app.post("/login", async (req, res) => {
-  const { email, client_id, redirect_uri, state } = req.body;
-
-  // Generate safe, valid code
-  const codeRaw = `${Date.now()}_${email}`;
-  const code = Buffer.from(codeRaw).toString("base64").replace(/=/g, "");
-
-  // Safe redirect
-  const url = new URL(redirect_uri);
-  url.searchParams.set("code", code);
-  url.searchParams.set("state", state);
-
-  console.log("✅ Login bypassed check. Redirecting to:", url.toString());
-  return res.redirect(url.toString());
+app.post('/login', async (req, res) => {
+  const { email, password, redirect_uri, state } = req.body;
+  try {
+    const user = await admin.auth().getUserByEmail(email);
+    const customToken = await admin.auth().createCustomToken(user.uid);
+    const code = crypto.randomBytes(20).toString('hex');
+    authCodes.set(code, { uid: user.uid });
+    res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
+  } catch (err) {
+    res.status(401).send('Authentication failed.');
+  }
 });
 
+app.post('/token', (req, res) => {
+  const { grant_type, code, client_id, client_secret, refresh_token } = req.body;
 
-// === /token ===
-app.post("/token", (req, res) => {
-  const { code, grant_type } = req.body;
+  if (grant_type === 'authorization_code') {
+    const data = authCodes.get(code);
+    if (!data) return res.status(400).send('Invalid code');
 
-  if (grant_type !== "authorization_code") {
-    return res.status(400).json({ error: "unsupported_grant_type" });
-  }
+    const access_token = jwt.sign({ uid: data.uid }, 'access_secret', { expiresIn: '1h' });
+    const refresh_token = jwt.sign({ uid: data.uid }, 'refresh_secret', { expiresIn: '7d' });
 
-  try {
-    const decoded = Buffer.from(code, "base64").toString("utf8");
-    const email = decoded.split("_")[1];
-
-    const access_token = Buffer.from(`${email}:${Date.now()}`).toString("base64").replace(/=/g, "");
-    const refresh_token = Buffer.from(`${email}:refresh`).toString("base64").replace(/=/g, "");
-
-    res.json({
+    accessTokens.set(access_token, data.uid);
+    return res.json({
+      token_type: 'Bearer',
       access_token,
-      token_type: "Bearer",
-      expires_in: 3600,
       refresh_token,
+      expires_in: 3600
     });
-  } catch (error) {
-    console.error("❌ Token exchange failed:", error.message);
-    res.status(400).json({ error: "invalid_grant" });
   }
+
+  if (grant_type === 'refresh_token') {
+    try {
+      const decoded = jwt.verify(refresh_token, 'refresh_secret');
+      const newAccessToken = jwt.sign({ uid: decoded.uid }, 'access_secret', { expiresIn: '1h' });
+      return res.json({
+        token_type: 'Bearer',
+        access_token: newAccessToken,
+        expires_in: 3600
+      });
+    } catch (err) {
+      return res.status(400).send('Invalid refresh token');
+    }
+  }
+
+  res.status(400).send('Unsupported grant_type');
 });
 
-// === /refresh ===
-app.post("/refresh", (req, res) => {
-  const { refresh_token, grant_type } = req.body;
-
-  if (grant_type !== "refresh_token") {
-    return res.status(400).json({ error: "unsupported_grant_type" });
-  }
-
+app.get('/validate', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.sendStatus(401);
+  const token = authHeader.split(' ')[1];
   try {
-    const decoded = Buffer.from(refresh_token, "base64").toString("utf8");
-    const email = decoded.split(":")[0];
-
-    const new_access_token = Buffer.from(`${email}:${Date.now()}`).toString("base64").replace(/=/g, "");
-
-    res.json({
-      access_token: new_access_token,
-      token_type: "Bearer",
-      expires_in: 3600,
-    });
-  } catch (error) {
-    console.error("❌ Refresh token error:", error.message);
-    res.status(400).json({ error: "invalid_refresh_token" });
+    const decoded = jwt.verify(token, 'access_secret');
+    res.json({ uid: decoded.uid });
+  } catch {
+    res.sendStatus(403);
   }
 });
 
-// === Start Server ===
-app.listen(PORT, () => {
-  console.log(`🚀 OAuth Server running at http://localhost:${PORT}`);
-});
+app.listen(3000, () => console.log('OAuth Server running on port 3000'));

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login with Firebase</title>
+</head>
+<body>
+  <h2>Login</h2>
+  <form method="POST" action="/login">
+    <input type="hidden" name="redirect_uri" value="{{redirect_uri}}">
+    <input type="hidden" name="state" value="{{state}}">
+    <input type="hidden" name="client_id" value="{{client_id}}">
+    <label>Email:</label><br>
+    <input type="email" name="email"><br>
+    <label>Password:</label><br>
+    <input type="password" name="password"><br><br>
+    <input type="submit" value="Login">
+  </form>
+</body>
+</html>

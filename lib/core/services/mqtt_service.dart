@@ -26,7 +26,7 @@ class MqttService {
   static Future<void> connect() async {
     final clientId = await getUniqueClientId();
     client = MqttServerClient.withPort(
-      'anqg66n1fr3hi-ats.iot.eu-north-1.amazonaws.com', // Your AWS IoT endpoint
+      'anqg66n1fr3hi-ats.iot.eu-west-1.amazonaws.com', // Your AWS IoT endpoint
       clientId,
       8883,
     );

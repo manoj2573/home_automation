@@ -1,68 +1,189 @@
 const admin = require('firebase-admin');
 const awsIot = require('aws-iot-device-sdk');
+const colorConvert = require('color-convert');
+const https = require('https');
 
-// === Initialize Firebase ===
-admin.initializeApp({
-  credential: admin.credential.cert(require('./serviceAccountKey.json')),
-});
+// === Firebase Init ===
+if (!admin.apps.length) {
+  const serviceAccount = require('./serviceAccountKey.json');
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId: serviceAccount.project_id,
+  });
+}
 const firestore = admin.firestore();
+console.log("🧾 Firebase initialized with project:", admin.app().options.projectId);
 
-// === Initialize MQTT Client for AWS IoT Core ===
+// === MQTT Init ===
 const mqttClient = awsIot.device({
   keyPath: './private.pem.key',
   certPath: './certificate.pem.crt',
   caPath: './rootCA.crt',
   clientId: 'alexa-skill',
-  host: 'anqg66n1fr3hi-ats.iot.eu-north-1.amazonaws.com', // e.g. xyz-ats.iot.region.amazonaws.com
+  host: 'anqg66n1fr3hi-ats.iot.eu-west-1.amazonaws.com',
 });
 
 mqttClient.on('connect', () => {
   console.log('✅ Connected to AWS IoT Core');
+  mqttClient.subscribe('+/mobile');
 });
 
-// === Helper: Publish to MQTT ===
 function sendToDevice(deviceId, payload) {
-  const topic = `${deviceId}/device`;
-  mqttClient.publish(topic, JSON.stringify(payload));
-  console.log(`📤 Published to ${topic}:`, payload);
+  mqttClient.publish(`${deviceId}/device`, JSON.stringify(payload));
+  console.log(`📤 Published to ${deviceId}/device:`, payload);
 }
 
-// === Lambda Handler ===
+function postToAlexaGateway(event, token) {
+  const options = {
+    hostname: 'api.eu.amazonalexa.com',
+    path: '/v3/events',
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  };
+
+  const req = https.request(options, (res) => {
+    console.log(`📡 Alexa Event Gateway response: ${res.statusCode}`);
+    res.on('data', d => process.stdout.write(d));
+  });
+
+  req.on('error', (e) => {
+    console.error(`❌ Error posting to Alexa Event Gateway: ${e}`);
+  });
+
+  req.write(JSON.stringify(event));
+  req.end();
+}
+
+mqttClient.on('message', async (topic, message) => {
+  const payload = JSON.parse(message.toString());
+  const endpointId = topic.split('/')[0];
+
+  const reports = [];
+  if ('state' in payload) {
+    reports.push({
+      namespace: 'Alexa.PowerController',
+      name: 'powerState',
+      value: payload.state ? 'ON' : 'OFF'
+    });
+  }
+  if ('sliderValue' in payload && payload.deviceType !== 'RGB') {
+    reports.push({
+      namespace: 'Alexa.BrightnessController',
+      name: 'brightness',
+      value: Math.round((payload.sliderValue / 90) * 100)
+    });
+  }
+  if ('color' in payload && payload.deviceType === 'RGB') {
+    const hsv = colorConvert.hex.hsv(payload.color.replace('#', ''));
+    reports.push({
+      namespace: 'Alexa.ColorController',
+      name: 'color',
+      value: {
+        hue: hsv[0],
+        saturation: hsv[1] / 100,
+        brightness: hsv[2] / 100
+      }
+    });
+  }
+
+  for (const report of reports) {
+    const changeEvent = {
+      context: {
+        properties: [{
+          namespace: report.namespace,
+          name: report.name,
+          value: report.value,
+          timeOfSample: new Date().toISOString(),
+          uncertaintyInMilliseconds: 500,
+        }]
+      },
+      event: {
+        header: {
+          namespace: 'Alexa',
+          name: 'ChangeReport',
+          payloadVersion: '3',
+          messageId: Math.random().toString(),
+        },
+        endpoint: { endpointId },
+        payload: {
+          change: {
+            cause: { type: 'PHYSICAL_INTERACTION' },
+            properties: [{
+              namespace: report.namespace,
+              name: report.name,
+              value: report.value,
+              timeOfSample: new Date().toISOString(),
+              uncertaintyInMilliseconds: 500,
+            }]
+          }
+        }
+      }
+    };
+
+    console.log("📤 Alexa ChangeReport:", JSON.stringify(changeEvent, null, 2));
+
+    const token = 'replace-with-valid-access-token'; // Replace this with valid token
+    postToAlexaGateway(changeEvent, token);
+  }
+});
+
+
 exports.handler = async (event) => {
+  console.log("📡 Alexa event:", JSON.stringify(event, null, 2));
   const directive = event.directive;
   const { namespace, name } = directive.header;
+  const endpointId = directive.endpoint?.endpointId;
+  const correlationToken = directive.header.correlationToken;
+  const uid = "XAlJhkRbu7O85bboNjDHSvzzbXg1";
 
   if (namespace === 'Alexa.Discovery' && name === 'Discover') {
-    const token = directive.payload.scope.token;
-    const uid = extractUidFromToken(token);
-
     const snapshot = await firestore.collection('users').doc(uid).collection('devices').get();
-
     const endpoints = snapshot.docs.map(doc => {
       const d = doc.data();
+      const capabilities = [
+        {
+          type: 'AlexaInterface',
+          interface: 'Alexa.PowerController',
+          version: '3',
+          properties: { supported: [{ name: 'powerState' }], retrievable: false },
+        },
+        {
+          type: 'AlexaInterface',
+          interface: 'Alexa.EndpointHealth',
+          version: '3',
+          properties: { supported: [{ name: 'connectivity' }], retrievable: true },
+        },
+        { type: 'AlexaInterface', interface: 'Alexa', version: '3' },
+      ];
+      if (d.type === 'Fan' || d.type === 'Dimmable light') {
+        capabilities.push({
+          type: 'AlexaInterface',
+          interface: 'Alexa.BrightnessController',
+          version: '3',
+          properties: { supported: [{ name: 'brightness' }], retrievable: false },
+        });
+      }
+      if (d.type === 'RGB') {
+        capabilities.push({
+          type: 'AlexaInterface',
+          interface: 'Alexa.ColorController',
+          version: '3',
+          properties: { supported: [{ name: 'color' }], retrievable: false },
+        });
+      }
       return {
         endpointId: d.deviceId,
         manufacturerName: 'ESP32Home',
         friendlyName: d.name,
         description: `Smart ${d.type}`,
         displayCategories: getAlexaCategory(d.type),
-        cookie: {
-          registrationId: d.registrationId,
-        },
-        capabilities: [
-          {
-            type: 'AlexaInterface',
-            interface: 'Alexa.PowerController',
-            version: '3',
-            properties: {
-              supported: [{ name: 'powerState' }],
-              retrievable: false,
-            },
-          },
-        ],
+        cookie: { registrationId: d.registrationId },
+        capabilities
       };
     });
-
     return {
       event: {
         header: {
@@ -71,78 +192,113 @@ exports.handler = async (event) => {
           messageId: directive.header.messageId,
           payloadVersion: '3',
         },
-        payload: {
-          endpoints,
-        },
+        payload: { endpoints },
       },
     };
   }
 
-  // === Handle TurnOn/TurnOff ===
-  if (namespace === 'Alexa.PowerController') {
-    const endpointId = directive.endpoint.endpointId;
-    const correlationToken = directive.header.correlationToken;
-    const powerState = name === 'TurnOn' ? 'ON' : 'OFF';
-    const state = name === 'TurnOn';
-
-    const snapshot = await firestore.collectionGroup('devices')
-      .where('deviceId', '==', endpointId)
-      .get();
-
-    if (snapshot.empty) throw new Error('Device not found');
-
-    const device = snapshot.docs[0].data();
-
-    const payload = {
-      deviceId: device.deviceId,
-      registrationId: device.registrationId,
-      state: state,
-    };
-
-    sendToDevice(device.deviceId, payload);
-
-    await firestore.doc(snapshot.docs[0].ref.path).update({ state });
-
+  if (namespace === 'Alexa' && name === 'ReportState') {
     return {
-      context: {
-        properties: [{
-          namespace: 'Alexa.PowerController',
-          name: 'powerState',
-          value: powerState,
-          timeOfSample: new Date().toISOString(),
-          uncertaintyInMilliseconds: 500,
-        }],
-      },
+      context: { properties: [] },
       event: {
         header: {
           namespace: 'Alexa',
-          name: 'Response',
-          payloadVersion: '3',
+          name: 'StateReport',
           messageId: directive.header.messageId,
-          correlationToken: correlationToken,
+          correlationToken,
+          payloadVersion: '3'
         },
-        endpoint: {
-          endpointId: endpointId,
-        },
-        payload: {},
-      },
+        endpoint: { endpointId },
+        payload: {}
+      }
     };
+  }
+
+  if (namespace === 'Alexa.PowerController') {
+    const doc = await firestore.doc(`users/${uid}/devices/${endpointId}`).get();
+    if (!doc.exists) throw new Error("Device not found");
+    const d = doc.data();
+    const payload = {
+      deviceId: d.deviceId,
+      registrationId: d.registrationId,
+      deviceType: d.type,
+      state: name === 'TurnOn'
+    };
+    sendToDevice(d.deviceId, payload);
+    await doc.ref.update({ state: payload.state });
+    return buildAlexaResponse(endpointId, correlationToken, 'Alexa.PowerController', 'powerState', name === 'TurnOn' ? 'ON' : 'OFF');
+  }
+
+  if (namespace === 'Alexa.BrightnessController') {
+    let alexaValue = directive.payload.brightness;
+    let deviceValue = Math.round((alexaValue / 100) * 90);
+    const doc = await firestore.doc(`users/${uid}/devices/${endpointId}`).get();
+    if (!doc.exists) throw new Error("Device not found");
+    const d = doc.data();
+    const payload = {
+      deviceId: d.deviceId,
+      registrationId: d.registrationId,
+      deviceType: d.type,
+      state: true,
+      sliderValue: deviceValue
+    };
+    sendToDevice(d.deviceId, payload);
+    await doc.ref.update({ sliderValue: deviceValue, state: true });
+    return buildAlexaResponse(endpointId, correlationToken, 'Alexa.BrightnessController', 'brightness', alexaValue);
+  }
+
+  if (namespace === 'Alexa.ColorController') {
+    const h = directive.payload.color.hue;
+    const s = directive.payload.color.saturation;
+    const b = directive.payload.color.brightness;
+    const hex = `#${colorConvert.hsv.hex([h, s * 100, b * 100])}`;
+    const doc = await firestore.doc(`users/${uid}/devices/${endpointId}`).get();
+    if (!doc.exists) throw new Error("Device not found");
+    const d = doc.data();
+    const payload = {
+      deviceId: d.deviceId,
+      registrationId: d.registrationId,
+      deviceType: d.type,
+      state: true,
+      color: hex
+    };
+    sendToDevice(d.deviceId, payload);
+    await doc.ref.update({ color: hex, state: true });
+    return buildAlexaResponse(endpointId, correlationToken, 'Alexa.ColorController', 'color', directive.payload.color);
   }
 
   throw new Error('Unsupported directive');
 };
 
-// === Helper Functions ===
-
-function extractUidFromToken(token) {
-  // For development, assume token is uid
-  return token;
+function buildAlexaResponse(endpointId, token, namespace, name, value) {
+  return {
+    context: {
+      properties: [{
+        namespace,
+        name,
+        value,
+        timeOfSample: new Date().toISOString(),
+        uncertaintyInMilliseconds: 500,
+      }],
+    },
+    event: {
+      header: {
+        namespace: 'Alexa',
+        name: 'Response',
+        payloadVersion: '3',
+        messageId: Math.random().toString(),
+        correlationToken: token,
+      },
+      endpoint: { endpointId },
+      payload: {},
+    },
+  };
 }
 
 function getAlexaCategory(type) {
   switch (type) {
-    case 'Fan': return ['FAN'];
-    case 'Dimmable light': return ['LIGHT'];
+    case 'Fan':
+    case 'Dimmable light':
     case 'RGB': return ['LIGHT'];
     default: return ['SWITCH'];
   }
