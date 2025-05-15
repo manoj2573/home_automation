@@ -42,40 +42,58 @@ app.post('/login', async (req, res) => {
   }
 });
 
-app.post('/token', (req, res) => {
-  const { grant_type, code, client_id, client_secret, refresh_token } = req.body;
+app.post('/token', async (req, res) => {
+  const grantType = req.body.grant_type;
+  const code = req.body.code;
+  const refreshToken = req.body.refresh_token;
 
-  if (grant_type === 'authorization_code') {
-    const data = authCodes.get(code);
-    if (!data) return res.status(400).send('Invalid code');
+  if (grantType === 'authorization_code') {
+    const uid = code; // your UID passed from login form
 
-    const access_token = jwt.sign({ uid: data.uid }, 'access_secret', { expiresIn: '1h' });
-    const refresh_token = jwt.sign({ uid: data.uid }, 'refresh_secret', { expiresIn: '7d' });
+    const accessToken = Math.random().toString(36).substring(2);
+    const refreshToken = Math.random().toString(36).substring(2);
 
-    accessTokens.set(access_token, data.uid);
-    return res.json({
+    // 🔐 Store tokens in Firestore
+    await admin.firestore().collection('users').doc(uid).set({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      updatedAt: new Date()
+    }, { merge: true });
+
+    res.json({
       token_type: 'Bearer',
-      access_token,
-      refresh_token,
+      access_token: accessToken,
+      refresh_token: refreshToken,
       expires_in: 3600
     });
   }
 
-  if (grant_type === 'refresh_token') {
-    try {
-      const decoded = jwt.verify(refresh_token, 'refresh_secret');
-      const newAccessToken = jwt.sign({ uid: decoded.uid }, 'access_secret', { expiresIn: '1h' });
-      return res.json({
-        token_type: 'Bearer',
-        access_token: newAccessToken,
-        expires_in: 3600
-      });
-    } catch (err) {
-      return res.status(400).send('Invalid refresh token');
-    }
+  else if (grantType === 'refresh_token') {
+    const uidSnap = await admin.firestore().collection('users')
+      .where('refresh_token', '==', refreshToken)
+      .limit(1)
+      .get();
+
+    if (uidSnap.empty) return res.status(400).json({ error: 'invalid_grant' });
+
+    const accessToken = Math.random().toString(36).substring(2);
+
+    await uidSnap.docs[0].ref.update({
+      access_token: accessToken,
+      updatedAt: new Date()
+    });
+
+    res.json({
+      token_type: 'Bearer',
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_in: 3600
+    });
   }
 
-  res.status(400).send('Unsupported grant_type');
+  else {
+    res.status(400).json({ error: 'unsupported_grant_type' });
+  }
 });
 
 app.get('/validate', (req, res) => {
