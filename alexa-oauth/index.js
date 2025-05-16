@@ -65,19 +65,23 @@ app.post('/token', async (req, res) => {
   if (grant_type === 'authorization_code') {
     const data = userTokens[code];
     if (!data) return res.status(400).json({ error: 'invalid_grant' });
-
+  
     const access_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
     const refresh_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '30d' });
-
+  
     userTokens[refresh_token] = { access_token, uid: data.uid };
-
+  
+    // ✅ Write access token to Firestore
     try {
-      await firestore.collection('users').doc(data.uid).set({ access_token }, { merge: true });
+      await firestore.collection('users').doc(data.uid).set({
+        access_token
+      }, { merge: true });
+  
       console.log(`✅ Access token stored in Firestore for UID: ${data.uid}`);
     } catch (err) {
-      console.error("❌ Failed to write token to Firestore:", err);
+      console.error("❌ Failed to store token in Firestore:", err);
     }
-
+  
     return res.json({
       token_type: 'Bearer',
       access_token,
@@ -85,7 +89,7 @@ app.post('/token', async (req, res) => {
       expires_in: 3600
     });
   }
-
+  
   if (grant_type === 'refresh_token') {
     const data = userTokens[refresh_token];
     if (!data) return res.status(400).json({ error: 'invalid_grant' });
