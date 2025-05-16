@@ -25,8 +25,17 @@ const mqttClient = awsIot.device({
 
 mqttClient.on('connect', () => {
   console.log('✅ Connected to AWS IoT Core');
-  mqttClient.subscribe('+/mobile');
+
+  const topic = '+/mobile';
+  mqttClient.subscribe(topic, (err, granted) => {
+    if (err) {
+      console.error(`❌ Failed to subscribe to topic: ${topic}`, err);
+    } else {
+      console.log(`📡 Subscribed to topic: ${granted[0].topic} with QoS ${granted[0].qos}`);
+    }
+  });
 });
+
 
 function sendToDevice(deviceId, payload) {
   mqttClient.publish(`${deviceId}/device`, JSON.stringify(payload));
