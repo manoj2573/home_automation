@@ -62,60 +62,47 @@ app.post('/token', async (req, res) => {
     return res.status(401).json({ error: 'invalid_client' });
   }
 
-  try {
-    if (grant_type === 'authorization_code') {
-      const data = userTokens[code];
-      if (!data) return res.status(400).json({ error: 'invalid_grant' });
+  if (grant_type === 'authorization_code') {
+    const data = userTokens[code];
+    if (!data) return res.status(400).json({ error: 'invalid_grant' });
 
-      const uid = data.uid;
-      const access_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '1h' });
-      const new_refresh_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '30d' });
+    const access_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
+    const refresh_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '30d' });
 
-      // Save in memory
-      userTokens[new_refresh_token] = { access_token, uid };
+    userTokens[refresh_token] = { access_token, uid: data.uid };
 
-      // ✅ Write access_token to Firestore
-      await firestore.collection('users').doc(uid).set({
-        access_token: access_token
-      }, { merge: true });
-
-      console.log(`✅ Token stored for UID ${uid}`);
-
-      return res.json({
-        token_type: 'Bearer',
-        access_token,
-        refresh_token: new_refresh_token,
-        expires_in: 3600
-      });
+    try {
+      await firestore.collection('users').doc(data.uid).set({ access_token }, { merge: true });
+      console.log(`✅ Access token stored in Firestore for UID: ${data.uid}`);
+    } catch (err) {
+      console.error("❌ Failed to write token to Firestore:", err);
     }
 
-    if (grant_type === 'refresh_token') {
-      const data = userTokens[refresh_token];
-      if (!data) return res.status(400).json({ error: 'invalid_grant' });
-
-      const newAccessToken = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
-      userTokens[refresh_token].access_token = newAccessToken;
-
-      // ✅ Write refreshed token
-      await firestore.collection('users').doc(data.uid).set({
-        access_token: newAccessToken
-      }, { merge: true });
-
-      return res.json({
-        token_type: 'Bearer',
-        access_token: newAccessToken,
-        refresh_token,
-        expires_in: 3600
-      });
-    }
-
-    return res.status(400).json({ error: 'unsupported_grant_type' });
-  } catch (err) {
-    console.error("❌ Error during /token:", err);
-    return res.status(500).json({ error: 'server_error' });
+    return res.json({
+      token_type: 'Bearer',
+      access_token,
+      refresh_token,
+      expires_in: 3600
+    });
   }
-});
 
+  if (grant_type === 'refresh_token') {
+    const data = userTokens[refresh_token];
+    if (!data) return res.status(400).json({ error: 'invalid_grant' });
+
+    const newAccessToken = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
+    userTokens[refresh_token].access_token = newAccessToken;
+
+    return res.json({
+      token_type: 'Bearer',
+      access_token: newAccessToken,
+      refresh_token,
+      expires_in: 3600
+    });
+  }
+
+  return res.status(400).json({ error: 'unsupported_grant_type' });
+});
 
 // === Get User Profile ===
 app.get('/profile', (req, res) => {
