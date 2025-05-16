@@ -33,6 +33,12 @@ const REDIRECT_URI = 'https://alexa-oauth.onrender.com/callback';
 
 const userTokens = {}; // Temporary in-memory store: { refreshToken: { access_token, uid } }
 
+app.get('/authorize', (req, res) => {
+  const { redirect_uri, state, client_id } = req.query;
+  const loginUrl = `/login?redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state)}&client_id=${encodeURIComponent(client_id)}`;
+  res.redirect(loginUrl);
+});
+
 // === Login Page ===
 app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
