@@ -15,7 +15,7 @@ admin.initializeApp({
 const firestore = admin.firestore();
 console.log("✅ Firebase Admin initialized");
 
-const FIREBASE_API_KEY = 'YOUR_FIREBASE_WEB_API_KEY'; // <-- ⛳ Replace with your Firebase Web API Key
+const FIREBASE_API_KEY = 'AIzaSyDW5glX6e8GMXtlAlyZnoDB6KfWDqw08X0'; // <-- ⛳ Replace with your Firebase Web API Key
 
 // === Server Config ===
 const app = express();
