@@ -15,9 +15,9 @@ admin.initializeApp({
 const firestore = admin.firestore();
 console.log("✅ Firebase Admin initialized");
 
-const FIREBASE_API_KEY = 'AIzaSyDW5glX6e8GMXtlAlyZnoDB6KfWDqw08X0'; // ⛳ Replace with your Firebase Web API Key
+const FIREBASE_API_KEY = 'AIzaSyDW5glX6e8GMXtlAlyZnoDB6KfWDqw08X0'; // Replace with your Firebase Web API Key
 
-// === Server Config ===
+// === App Config ===
 const app = express();
 const port = process.env.PORT || 3000;
 app.use(cors());
@@ -29,55 +29,66 @@ app.use(express.static('public'));
 const CLIENT_ID = 'amzn1.application-oa2-client.alexa-client';
 const CLIENT_SECRET = 'alexa-secret';
 
-// === In-Memory Store for Tokens (ephemeral)
+// === In-Memory Store
 const userTokens = {}; // { refreshToken: { access_token, uid } }
 
 // === Step 1: Alexa hits this to start OAuth flow
 app.get('/authorize', (req, res) => {
   const { redirect_uri, state, client_id } = req.query;
+
+  if (!redirect_uri || !state || !client_id) {
+    console.error("❌ Missing OAuth params:", req.query);
+    return res.status(400).send("Missing redirect_uri, state, or client_id");
+  }
+
+  console.log("🧭 /authorize initiated");
+  console.log("   redirect_uri:", redirect_uri);
+  console.log("   state:", state);
+  console.log("   client_id:", client_id);
+
   const loginUrl = `/login?redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state)}&client_id=${encodeURIComponent(client_id)}`;
   res.redirect(loginUrl);
 });
 
-// === Step 2: Show Login Page
+// === Step 2: Show Login Form
 app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// === Step 3: Handle Login Form
+// === Step 3: Handle Login Form Submission
 app.post('/login', async (req, res) => {
   const { email, password, redirect_uri, state } = req.body;
 
+  if (!redirect_uri || !state) {
+    console.error("❌ Missing redirect_uri or state in login form");
+    return res.status(400).send("Missing redirect_uri or state");
+  }
+
   try {
-    // Firebase Auth REST API sign-in
     const result = await axios.post(
       `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
-      {
-        email,
-        password,
-        returnSecureToken: true,
-      }
+      { email, password, returnSecureToken: true }
     );
 
     const uid = result.data.localId;
     const code = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '10m' });
     userTokens[code] = { uid };
 
-    console.log("✅ Login success for:", email, "UID:", uid);
+    console.log(`✅ Login successful: ${email}, UID: ${uid}`);
     const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
     res.redirect(redirectUrl);
 
   } catch (error) {
     console.error("❌ Login failed:", error.response?.data || error.message);
-    res.status(401).send('Invalid login credentials');
+    res.status(401).send("Invalid login credentials");
   }
 });
 
-// === Step 4: Token Exchange (Authorization Code → Access Token)
+// === Step 4: Alexa exchanges code for token
 app.post('/token', async (req, res) => {
   const { client_id, client_secret, code, grant_type, refresh_token } = req.body;
 
-  console.log("🔐 Token request:", req.body);
+  console.log("🔐 /token request received:", req.body);
 
   if (client_id !== CLIENT_ID || client_secret !== CLIENT_SECRET) {
     return res.status(401).json({ error: 'invalid_client' });
@@ -92,12 +103,10 @@ app.post('/token', async (req, res) => {
 
     userTokens[new_refresh_token] = { access_token, uid: data.uid };
 
-    // ✅ Save access_token to Firestore
-    await firestore.collection('users').doc(data.uid).set({
-      access_token
-    }, { merge: true });
+    // ✅ Store access token in Firestore
+    await firestore.collection('users').doc(data.uid).set({ access_token }, { merge: true });
 
-    console.log("✅ Token saved to Firestore for UID:", data.uid);
+    console.log("✅ Token stored in Firestore for UID:", data.uid);
 
     return res.json({
       token_type: 'Bearer',
@@ -125,7 +134,15 @@ app.post('/token', async (req, res) => {
   return res.status(400).json({ error: 'unsupported_grant_type' });
 });
 
-// === Step 5: User Profile API (optional for testing)
+// === Step 5: Success Page (optional)
+app.get('/callback', (req, res) => {
+  res.send(`
+    <h2>✅ Alexa Account Linked</h2>
+    <p>You may now return to your Alexa app.</p>
+  `);
+});
+
+// === Step 6: Profile API (optional)
 app.get('/profile', (req, res) => {
   const auth = req.headers.authorization || '';
   const token = auth.replace('Bearer ', '');
@@ -138,7 +155,7 @@ app.get('/profile', (req, res) => {
   }
 });
 
-// === Start Server ===
+// === Start Server
 app.listen(port, () => {
   console.log(`🚀 Alexa OAuth server running at http://localhost:${port}`);
 });
