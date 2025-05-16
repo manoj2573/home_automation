@@ -37,18 +37,14 @@ app.get('/authorize', (req, res) => {
   const { redirect_uri, state, client_id } = req.query;
 
   if (!redirect_uri || !state || !client_id) {
-    console.error("❌ Missing OAuth params:", req.query);
-    return res.status(400).send("Missing redirect_uri, state, or client_id");
+    return res.status(400).send("Missing required query parameters.");
   }
 
-  console.log("🧭 /authorize initiated");
-  console.log("   redirect_uri:", redirect_uri);
-  console.log("   state:", state);
-  console.log("   client_id:", client_id);
-
+  // Save everything for POST to use
   const loginUrl = `/login?redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state)}&client_id=${encodeURIComponent(client_id)}`;
   res.redirect(loginUrl);
 });
+
 
 // === Step 2: Show Login Form
 app.get('/login', (req, res) => {
@@ -57,11 +53,10 @@ app.get('/login', (req, res) => {
 
 // === Step 3: Handle Login Form Submission
 app.post('/login', async (req, res) => {
-  const { email, password, redirect_uri, state } = req.body;
+  const { email, password, redirect_uri, state, client_id } = req.body;
 
-  if (!redirect_uri || !state) {
-    console.error("❌ Missing redirect_uri or state in login form");
-    return res.status(400).send("Missing redirect_uri or state");
+  if (!redirect_uri || !state || !client_id) {
+    return res.status(400).send("Invalid request");
   }
 
   try {
@@ -72,17 +67,17 @@ app.post('/login', async (req, res) => {
 
     const uid = result.data.localId;
     const code = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '10m' });
-    userTokens[code] = { uid };
 
-    console.log(`✅ Login successful: ${email}, UID: ${uid}`);
+    // ✅ IMPORTANT: Alexa will use this `code` to call /token
     const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
+    console.log("✅ Redirecting to:", redirectUrl);
     res.redirect(redirectUrl);
-
-  } catch (error) {
-    console.error("❌ Login failed:", error.response?.data || error.message);
+  } catch (err) {
+    console.error("❌ Login error:", err.response?.data || err.message);
     res.status(401).send("Invalid login credentials");
   }
 });
+
 
 // === Step 4: Alexa exchanges code for token
 app.post('/token', async (req, res) => {
