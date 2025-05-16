@@ -47,11 +47,6 @@ app.get('/authorize', (req, res) => {
 
 
 // === Step 2: Show Login Form
-app.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-// === Step 3: Handle Login Form Submission
 app.post('/login', async (req, res) => {
   const { email, password, redirect_uri, state, client_id } = req.body;
 
