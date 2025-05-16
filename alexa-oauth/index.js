@@ -62,29 +62,28 @@ app.post('/token', async(req, res) => {
     return res.status(401).json({ error: 'invalid_client' });
   }
 
- if (grant_type === 'authorization_code') {
-  const data = userTokens[code];
-  if (!data) return res.status(400).json({ error: 'invalid_grant' });
-
-  const access_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
-  const refresh_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '30d' });
-
-  userTokens[refresh_token] = { access_token, uid: data.uid };
-
-  // ✅ Save to Firestore for Lambda to use
-  await firestore.collection('users').doc(data.uid).set({
-    access_token,
-    refresh_token,
-    token_expires_at: Date.now() + 3600 * 1000
-  }, { merge: true });
-
-  return res.json({
-    token_type: 'Bearer',
-    access_token,
-    refresh_token,
-    expires_in: 3600
-  });
-}
+  if (grant_type === 'authorization_code') {
+    const data = userTokens[code];
+    if (!data) return res.status(400).json({ error: 'invalid_grant' });
+  
+    const access_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
+    const refresh_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '30d' });
+  
+    userTokens[refresh_token] = { access_token, uid: data.uid };
+  
+    // 🔥 STORE TOKEN TO FIRESTORE so lambda can find it
+    await firestore.collection('users').doc(data.uid).update({
+      access_token: access_token
+    });
+  
+    return res.json({
+      token_type: 'Bearer',
+      access_token,
+      refresh_token,
+      expires_in: 3600
+    });
+  }
+  
 
 
 if (grant_type === 'refresh_token') {

@@ -125,27 +125,29 @@ mqttClient.on('message', async (topic, message) => {
 
     console.log("📤 Alexa ChangeReport:", JSON.stringify(changeEvent, null, 2));
 
-    const userSnap = await firestore.collection('users')
-  .where('registrationId', '==', payload.registrationId)
-  .limit(1)
-  .get();
+    const userSnap = await firestore.collectionGroup('devices')
+      .where('deviceId', '==', endpointId)
+      .limit(1)
+      .get();
 
-if (userSnap.empty) {
-  console.warn(`⚠️ No user found with registrationId: ${payload.registrationId}`);
-  return;
-}
+    if (userSnap.empty) {
+      console.warn(`⚠️ No matching user/device found for endpointId: ${endpointId}`);
+      return;
+    }
 
-const token = userSnap.docs[0].data().access_token;
-if (!token) {
-  console.warn(`⚠️ No access token stored for registrationId: ${payload.registrationId}`);
-  return;
-}
+    const userDoc = userSnap.docs[0];
+    const userId = userDoc.ref.path.split('/')[1];
+    const userData = await firestore.collection('users').doc(userId).get();
+    const token = userData.data()?.access_token;
 
-postToAlexaGateway(changeEvent, token);
+    if (!token) {
+      console.warn(`⚠️ No access token for user: ${userId}`);
+      return;
+    }
 
+    postToAlexaGateway(changeEvent, token);
   }
 });
-
 
 exports.handler = async (event) => {
   console.log("📡 Alexa event:", JSON.stringify(event, null, 2));
