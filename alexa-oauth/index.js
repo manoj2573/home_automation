@@ -44,7 +44,17 @@ app.get('/authorize', (req, res) => {
   const loginUrl = `/login?redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state)}&client_id=${encodeURIComponent(client_id)}`;
   res.redirect(loginUrl);
 });
-
+// === Step 2: Serve Login Form
+app.get('/login', (req, res) => {
+  const { redirect_uri, state, client_id } = req.query;
+  
+  if (!redirect_uri || !state || !client_id) {
+    return res.status(400).send("Missing required query parameters.");
+  }
+  
+  // Serve the login form with the parameters
+  res.sendFile(path.join(__dirname, 'login.html'));
+});
 
 // === Step 2: Show Login Form
 app.post('/login', async (req, res) => {
@@ -84,46 +94,76 @@ app.post('/token', async (req, res) => {
     return res.status(401).json({ error: 'invalid_client' });
   }
 
-  if (grant_type === 'authorization_code') {
-    const data = userTokens[code];
-    if (!data) return res.status(400).json({ error: 'invalid_grant' });
+  try {
+    if (grant_type === 'authorization_code') {
+      // Verify the JWT code first
+      let decoded;
+      try {
+        decoded = jwt.verify(code, CLIENT_SECRET);
+      } catch (err) {
+        return res.status(400).json({ error: 'invalid_grant', message: 'Invalid authorization code' });
+      }
 
-    const access_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
-    const new_refresh_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '30d' });
+      const uid = decoded.uid;
+      const access_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '1h' });
+      const new_refresh_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '30d' });
 
-    userTokens[new_refresh_token] = { access_token, uid: data.uid };
+      // Store tokens in memory
+      userTokens[new_refresh_token] = { access_token, uid };
 
-    // ✅ Store access token in Firestore
-    await firestore.collection('users').doc(data.uid).set({ access_token }, { merge: true });
+      // Store access token in Firestore with error handling
+      try {
+        await firestore.collection('users').doc(uid).set({ 
+          access_token,
+          refresh_token: new_refresh_token,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+        }, { merge: true });
+        
+        console.log("✅ Token stored in Firestore for UID:", uid);
+      } catch (firestoreError) {
+        console.error("❌ Firestore error:", firestoreError);
+        // Don't fail the request, just log the error
+      }
 
-    console.log("✅ Token stored in Firestore for UID:", data.uid);
+      return res.json({
+        token_type: 'Bearer',
+        access_token,
+        refresh_token: new_refresh_token,
+        expires_in: 3600
+      });
+    }
 
-    return res.json({
-      token_type: 'Bearer',
-      access_token,
-      refresh_token: new_refresh_token,
-      expires_in: 3600
-    });
+    if (grant_type === 'refresh_token') {
+      const data = userTokens[refresh_token];
+      if (!data) return res.status(400).json({ error: 'invalid_grant' });
+
+      const newAccessToken = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
+      userTokens[refresh_token].access_token = newAccessToken;
+
+      // Update Firestore with new access token
+      try {
+        await firestore.collection('users').doc(data.uid).update({
+          access_token: newAccessToken,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (firestoreError) {
+        console.error("❌ Firestore update error:", firestoreError);
+      }
+
+      return res.json({
+        token_type: 'Bearer',
+        access_token: newAccessToken,
+        refresh_token,
+        expires_in: 3600
+      });
+    }
+
+    return res.status(400).json({ error: 'unsupported_grant_type' });
+  } catch (err) {
+    console.error("❌ /token endpoint error:", err);
+    return res.status(500).json({ error: 'server_error', message: err.message });
   }
-
-  if (grant_type === 'refresh_token') {
-    const data = userTokens[refresh_token];
-    if (!data) return res.status(400).json({ error: 'invalid_grant' });
-
-    const newAccessToken = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
-    userTokens[refresh_token].access_token = newAccessToken;
-
-    return res.json({
-      token_type: 'Bearer',
-      access_token: newAccessToken,
-      refresh_token,
-      expires_in: 3600
-    });
-  }
-
-  return res.status(400).json({ error: 'unsupported_grant_type' });
 });
-
 // === Step 5: Success Page (optional)
 app.get('/callback', (req, res) => {
   res.send(`
