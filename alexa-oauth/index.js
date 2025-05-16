@@ -56,24 +56,27 @@ app.post('/token', async (req, res) => {
   if (grant_type === 'authorization_code') {
     const data = userTokens[code];
     if (!data) return res.status(400).json({ error: 'invalid_grant' });
-
-    const uid = data.uid;
-    const access_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '1h' });
-    const newRefreshToken = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '30d' });
-
-    userTokens[newRefreshToken] = { access_token, uid };
-
-    // ✅ Store token to Firestore
-    await firestore.collection('users').doc(uid).set({ access_token }, { merge: true });
-    console.log(`✅ Stored access_token for UID: ${uid}`);
-
+  
+    const access_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
+    const refresh_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '30d' });
+  
+    userTokens[refresh_token] = { access_token, uid: data.uid };
+  
+    // ✅ Store to Firestore so Lambda can access it
+    await firestore.collection('users').doc(data.uid).set({
+      access_token
+    }, { merge: true });
+  
+    console.log("✅ Token stored for uid:", data.uid);
+  
     return res.json({
       token_type: 'Bearer',
       access_token,
-      refresh_token: newRefreshToken,
+      refresh_token,
       expires_in: 3600
     });
   }
+  
 
   if (grant_type === 'refresh_token') {
     const data = userTokens[refresh_token];
