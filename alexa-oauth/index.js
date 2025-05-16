@@ -45,33 +45,37 @@ app.get('/login', (req, res) => {
 });
 
 // === Handle Login Submission ===
+const axios = require('axios');
+
 app.post('/login', async (req, res) => {
-  const { email, password, redirect_uri, state } = req.body;
+  const { email, password, redirect_uri, state, client_id } = req.body;
 
   try {
-    // 🔐 Verify email & password with Firebase Auth REST API
-    const loginRes = await axios.post(
-      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
+    // ✅ Call Firebase Auth REST API to sign in with email/password
+    const result = await axios.post(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=AIzaSyDW5glX6e8GMXtlAlyZnoDB6KfWDqw08X0`,
       {
         email,
         password,
-        returnSecureToken: true
+        returnSecureToken: true,
       }
     );
 
-    const uid = loginRes.data.localId;
+    const uid = result.data.localId;
 
-    // 🔑 Generate temporary authorization code
     const code = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '10m' });
     userTokens[code] = { uid };
 
     const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
+    console.log("✅ Login success for UID:", uid);
     res.redirect(redirectUrl);
-  } catch (err) {
-    console.error("❌ Login failed:", err?.response?.data || err.message);
-    res.status(401).send('Invalid credentials');
+
+  } catch (error) {
+    console.error("❌ Login failed:", error.response?.data || error.message);
+    res.status(401).send('Invalid login credentials');
   }
 });
+
 
 // === Handle OAuth Token Exchange ===
 
