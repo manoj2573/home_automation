@@ -30,6 +30,7 @@ const CLIENT_ID = 'amzn1.application-oa2-client.alexa-client';
 const CLIENT_SECRET = 'alexa-secret';
 const REDIRECT_URI = 'https://alexa-oauth.onrender.com/callback';
 
+
 const userTokens = {}; // Temporary in-memory store: { refreshToken: { access_token, uid } }
 
 // === Login Page ===
@@ -67,8 +68,12 @@ app.post('/login', async (req, res) => {
 });
 
 // === Handle OAuth Token Exchange ===
+
 app.post('/token', async (req, res) => {
   const { client_id, client_secret, code, grant_type, refresh_token } = req.body;
+
+  console.log("🔐 /token hit");
+  console.log("Body:", req.body);
 
   if (client_id !== CLIENT_ID || client_secret !== CLIENT_SECRET) {
     return res.status(401).json({ error: 'invalid_client' });
@@ -79,18 +84,21 @@ app.post('/token', async (req, res) => {
     if (!data) return res.status(400).json({ error: 'invalid_grant' });
 
     const access_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
-    const newRefreshToken = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '30d' });
+    const new_refresh_token = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '30d' });
 
-    userTokens[newRefreshToken] = { access_token, uid: data.uid };
+    userTokens[new_refresh_token] = { access_token, uid: data.uid };
 
-    // ✅ Store token to Firestore for Alexa Lambda access
-    await firestore.collection('users').doc(data.uid).set({ access_token }, { merge: true });
-    console.log("✅ Access token stored for UID:", data.uid);
+    // ✅ Save access token to Firestore
+    await firestore.collection('users').doc(data.uid).set({
+      access_token: access_token
+    }, { merge: true });
+
+    console.log("✅ Token saved for UID:", data.uid);
 
     return res.json({
       token_type: 'Bearer',
       access_token,
-      refresh_token: newRefreshToken,
+      refresh_token: new_refresh_token,
       expires_in: 3600
     });
   }
@@ -102,9 +110,6 @@ app.post('/token', async (req, res) => {
     const newAccessToken = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
     userTokens[refresh_token].access_token = newAccessToken;
 
-    // ✅ Update Firestore again
-    await firestore.collection('users').doc(data.uid).set({ access_token: newAccessToken }, { merge: true });
-
     return res.json({
       token_type: 'Bearer',
       access_token: newAccessToken,
@@ -115,6 +120,7 @@ app.post('/token', async (req, res) => {
 
   return res.status(400).json({ error: 'unsupported_grant_type' });
 });
+
 
 // === User Profile Endpoint ===
 app.get('/profile', (req, res) => {
