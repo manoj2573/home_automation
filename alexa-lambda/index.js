@@ -177,28 +177,26 @@ exports.handler = async (event) => {
     }
   
     if (token.split('.').length === 3) {
+      // JWT
       const decoded = jwt.verify(token, CLIENT_SECRET);
       uid = decoded.uid;
       console.log("✅ UID from JWT:", uid);
     } else {
-      // fallback: token is base64 of email:timestamp
-      const decoded = Buffer.from(token, 'base64').toString('utf-8');
-      const email = decoded.split(':')[0];
-      console.log("📧 Fallback email from token:", email);
+      // Base64 fallback (email:timestamp)
+      const base64 = Buffer.from(token, 'base64').toString();
+      const email = base64.split(':')[0];
+      console.log("📧 Extracted email:", email);
   
-      // 🔍 fetch UID from Firestore by email
-      const snap = await firestore.collection('users')
-        .where('email', '==', email)
-        .limit(1)
-        .get();
-  
-      if (snap.empty) throw new Error("User not found by email");
-  
-      uid = snap.docs[0].id;
-      console.log("✅ UID from email lookup:", uid);
+      const userQuery = await firestore.collection("users").where("email", "==", email).limit(1).get();
+      if (userQuery.empty) {
+        throw new Error("No user found for email");
+      }
+      uid = userQuery.docs[0].id;
+      console.log("✅ UID fetched from Firestore by email:", uid);
     }
+  
   } catch (err) {
-    console.error("❌ Token decode error:", err.message);
+    console.error("❌ Failed to extract UID:", err.message);
     throw new Error("Unauthorized: Invalid token");
   }  
   

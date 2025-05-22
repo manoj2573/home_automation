@@ -108,10 +108,11 @@ app.post('/token', async (req, res) => {
 
       try {
         await firestore.collection('users').doc(uid).set({
+          email, // ✅ save email for lookups
           access_token,
           refresh_token: new_refresh_token,
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+        }, { merge: true });        
         console.log(`✅ Stored tokens for UID: ${uid}`);
       } catch (firestoreError) {
         console.error("❌ Firestore write error:", firestoreError);
