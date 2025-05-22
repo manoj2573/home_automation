@@ -1,79 +1,73 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Login | Yantra Smart Home</title>
+  <title>Login | Yantra Alexa</title>
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #f3f4f6;
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100vh;
       margin: 0;
     }
-    .login-container {
-      background-color: white;
+
+    .card {
+      background: white;
       padding: 30px;
       border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-      width: 100%;
-      max-width: 360px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
       text-align: center;
+      width: 300px;
     }
-    .login-container img {
-      width: 100px;
+
+    img.logo {
+      height: 80px;
       margin-bottom: 20px;
     }
-    .login-container input[type="email"],
-    .login-container input[type="password"] {
+
+    input[type="email"], input[type="password"] {
       width: 100%;
       padding: 10px;
-      margin: 10px 0;
-      border-radius: 6px;
+      margin-top: 10px;
+      margin-bottom: 20px;
       border: 1px solid #ccc;
-    }
-    .login-container input[type="submit"] {
-      width: 100%;
-      padding: 12px;
-      background-color: #f59e0b;
-      border: none;
-      color: white;
       border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
     }
-    .login-container input[type="submit"]:hover {
-      background-color: #d97706;
+
+    button {
+      background: #4CAF50;
+      color: white;
+      padding: 10px;
+      width: 100%;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    .error {
+      color: red;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
-  <div class="login-container">
-    <img src="logo.png" alt="Yantra Logo">
-    <form id="loginForm" method="POST" action="/login">
-      <input type="hidden" name="redirect_uri" id="redirect_uri">
-      <input type="hidden" name="state" id="state">
-      <input type="hidden" name="client_id" id="client_id">
-
-      <input type="email" name="email" placeholder="Email" required>
-      <input type="password" name="password" placeholder="Password" required>
-      <input type="submit" value="Login">
-    </form>
-  </div>
-
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const redirect_uri = params.get("redirect_uri");
-    const state = params.get("state");
-    const client_id = params.get("client_id");
-
-    document.getElementById("redirect_uri").value = redirect_uri || "";
-    document.getElementById("state").value = state || "";
-    document.getElementById("client_id").value = client_id || "";
-
-    const form = document.getElementById("loginForm");
-    form.action = `/login?redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state)}&client_id=${encodeURIComponent(client_id)}`;
-  </script>
+  <form class="card" method="POST" action="/login">
+    <img class="logo" src="/logo.png" alt="Logo" />
+    <h2>Login to Yantra</h2>
+    <input type="email" name="email" placeholder="Email" required />
+    <input type="password" name="password" placeholder="Password" required />
+    <input type="hidden" name="client_id" value="{{client_id}}">
+    <input type="hidden" name="redirect_uri" value="{{redirect_uri}}">
+    <input type="hidden" name="state" value="{{state}}">
+    <button type="submit">Login</button>
+  </form>
 </body>
 </html>

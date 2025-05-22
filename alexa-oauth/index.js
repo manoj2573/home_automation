@@ -1,177 +1,117 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const admin = require('firebase-admin');
-const jwt = require('jsonwebtoken');
-const cors = require('cors');
-const path = require('path');
-const axios = require('axios');
-
-// === Firebase Init ===
-const serviceAccount = require('./serviceAccountKey.json');
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  projectId: serviceAccount.project_id,
-});
-const firestore = admin.firestore();
-console.log("✅ Firebase Admin initialized");
-
-const FIREBASE_API_KEY = 'AIzaSyDW5glX6e8GMXtlAlyZnoDB6KfWDqw08X0';
-const CLIENT_ID = 'amzn1.application-oa2-client.alexa-client';
-const CLIENT_SECRET = 'alexa-secret';
+const express = require("express");
+const admin = require("firebase-admin");
+const bodyParser = require("body-parser");
+const cookieParser = require("cookie-parser");
+const path = require("path");
+const axios = require("axios");
+const jwt = require("jsonwebtoken");
+const fs = require("fs");
 
 const app = express();
-const port = process.env.PORT || 3000;
-app.use(cors());
+const PORT = process.env.PORT || 3000;
+
+// === Firebase Admin Init ===
+const serviceAccount = require("./serviceAccountKey.json");
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+const FIREBASE_API_KEY = "AIzaSyDW5glX6e8GMXtlAlyZnoDB6KfWDqw08X0"; // Replace with your Firebase Web API Key
+const CLIENT_SECRET = "alexa-secret";
+
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
-app.use(express.static('public'));
+app.use(cookieParser());
+app.use(express.static("public"));
 
-const userTokens = {}; // in-memory fallback
+// === Step 1: OAuth Authorization Page ===
+app.get("/authorize", (req, res) => {
+  const { client_id, redirect_uri, state } = req.query;
 
-// === Step 1: Alexa -> /authorize
-app.get('/authorize', (req, res) => {
-  const { redirect_uri, state, client_id } = req.query;
+  const html = fs.readFileSync(path.join(__dirname, "login.html"), "utf8")
+    .replace("{{client_id}}", client_id)
+    .replace("{{redirect_uri}}", redirect_uri)
+    .replace("{{state}}", state);
 
-  if (!redirect_uri || !state || !client_id) {
-    console.error("❌ Missing parameters in /authorize");
-    return res.status(400).send("Missing query parameters.");
-  }
-
-  const loginUrl = `/login?redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state)}&client_id=${encodeURIComponent(client_id)}`;
-  console.log("📍 Redirecting to login page:", loginUrl);
-  res.redirect(loginUrl);
+  res.send(html);
 });
 
-// === Step 2: Serve Login Page
-app.get('/login', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, 'login.html'));
-});
-
-// === Step 3: Handle Login Form POST
-app.post('/login', async (req, res) => {
-  const { email, password, redirect_uri, state, client_id } = req.body;
-
-  if (!email || !password || !redirect_uri || !state || !client_id) {
-    console.error("❌ Invalid login form submission");
-    return res.status(400).send("Invalid login form.");
-  }
+// === Step 2: Handle Login POST ===
+app.post("/login", async (req, res) => {
+  const { email, password, client_id, redirect_uri, state } = req.body;
 
   try {
-    console.log(`🔐 Login attempt from: ${email}`);
     const result = await axios.post(
       `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
-      { email, password, returnSecureToken: true }
+      {
+        email,
+        password,
+        returnSecureToken: true,
+      }
     );
 
     const uid = result.data.localId;
-    console.log(`✅ Firebase login success: ${email} | UID: ${uid}`);
+    console.log(`✅ Firebase login success. Email: ${email}, UID: ${uid}`);
 
-    const code = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '10m' });
+    const code = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: "10m" });
     const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
-    console.log("🔁 Redirecting back to Alexa:", redirectUrl);
-
-    res.redirect(redirectUrl);
+    return res.redirect(redirectUrl);
   } catch (err) {
     console.error("❌ Login failed:", err.response?.data || err.message);
-    res.status(401).send("Invalid login credentials. Please go back and try again.");
+    return res.send(`<script>alert("Invalid credentials. Try again."); window.history.back();</script>`);
   }
 });
 
-// === Step 4: Alexa calls /token
-app.post('/token', async (req, res) => {
-  const { client_id, client_secret, code, grant_type, refresh_token } = req.body;
-  console.log("📥 /token request:", req.body);
+// === Step 3: Token Exchange ===
+app.post("/token", async (req, res) => {
+  const { code, grant_type } = req.body;
 
-  if (client_id !== CLIENT_ID || client_secret !== CLIENT_SECRET) {
-    console.error("❌ Invalid Alexa credentials");
-    return res.status(401).json({ error: 'invalid_client' });
+  if (grant_type !== "authorization_code") {
+    return res.status(400).json({ error: "unsupported_grant_type" });
   }
 
   try {
-    if (grant_type === 'authorization_code') {
-      const decoded = jwt.verify(code, CLIENT_SECRET);
-      const uid = decoded.uid;
-      console.log("✅ Auth code verified, UID:", uid);
+    const decoded = jwt.verify(code, CLIENT_SECRET);
+    const uid = decoded.uid;
+    const access_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: "1h" });
+    const refresh_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: "30d" });
 
-      const access_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '1h' });
-      const new_refresh_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '30d' });
+    console.log(`🔐 Issued token for UID: ${uid}`);
 
-      userTokens[new_refresh_token] = { access_token, uid };
-
-      try {
-        const userSnap = await firestore.collection('users').doc(uid).get();
-        const email = userSnap.exists ? userSnap.data().email : 'unknown';
-
-        await firestore.collection('users').doc(uid).set({
-          email,
-          access_token,
-          refresh_token: new_refresh_token,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        console.log(`✅ Tokens saved for UID: ${uid} (${email})`);
-      } catch (firestoreError) {
-        console.error("❌ Firestore write error:", firestoreError);
-      }
-
-      return res.json({
-        token_type: 'Bearer',
-        access_token,
-        refresh_token: new_refresh_token,
-        expires_in: 3600
-      });
-    }
-
-    if (grant_type === 'refresh_token') {
-      const data = userTokens[refresh_token];
-      if (!data) {
-        console.error("❌ Refresh token not found");
-        return res.status(400).json({ error: 'invalid_grant' });
-      }
-
-      const newAccessToken = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
-      userTokens[refresh_token].access_token = newAccessToken;
-
-      await firestore.collection('users').doc(data.uid).update({
-        access_token: newAccessToken,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      console.log("🔁 Refreshed access token for UID:", data.uid);
-
-      return res.json({
-        token_type: 'Bearer',
-        access_token: newAccessToken,
-        refresh_token,
-        expires_in: 3600
-      });
-    }
-
-    return res.status(400).json({ error: 'unsupported_grant_type' });
+    return res.json({
+      token_type: "Bearer",
+      access_token,
+      refresh_token,
+      expires_in: 3600,
+    });
   } catch (err) {
-    console.error("❌ /token handler error:", err);
-    return res.status(500).json({ error: 'server_error', message: err.message });
+    console.error("❌ Token exchange failed:", err.message);
+    return res.status(400).json({ error: "invalid_grant" });
   }
 });
 
-// === Optional Callback Message
-app.get('/callback', (req, res) => {
-  res.send(`<h2>✅ Alexa Account Linked</h2><p>You may now return to the Alexa app.</p>`);
-});
+// === Step 4: Refresh Token ===
+app.post("/refresh", (req, res) => {
+  const { refresh_token, grant_type } = req.body;
 
-// === Profile API (optional)
-app.get('/profile', (req, res) => {
-  const token = (req.headers.authorization || '').replace('Bearer ', '');
+  if (grant_type !== "refresh_token") {
+    return res.status(400).json({ error: "unsupported_grant_type" });
+  }
+
   try {
-    const decoded = jwt.verify(token, CLIENT_SECRET);
-    res.json({ user_id: decoded.uid });
+    const decoded = jwt.verify(refresh_token, CLIENT_SECRET);
+    const newAccessToken = jwt.sign({ uid: decoded.uid }, CLIENT_SECRET, { expiresIn: "1h" });
+
+    return res.json({
+      token_type: "Bearer",
+      access_token: newAccessToken,
+      refresh_token,
+      expires_in: 3600,
+    });
   } catch (err) {
-    console.error("❌ Invalid profile token:", err.message);
-    return res.status(401).json({ error: 'invalid_token' });
+    console.error("❌ Refresh failed:", err.message);
+    return res.status(400).json({ error: "invalid_token" });
   }
 });
 
-app.listen(port, () => {
-  console.log(`🚀 Alexa OAuth server running at http://localhost:${port}`);
+app.listen(PORT, () => {
+  console.log(`🚀 Alexa OAuth Server running at http://localhost:${PORT}`);
 });
