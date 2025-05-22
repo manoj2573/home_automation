@@ -48,7 +48,7 @@ app.post("/login", async (req, res) => {
   const { email, password, client_id, redirect_uri, state } = req.body;
 
   try {
-    const user = await admin.auth().getUserByEmail(email);
+    const user = await admin.auth().getUserByEmailAndPassword(email, password);
 
     // Optionally verify password with your own DB system (Firebase Admin doesn't support password auth directly)
 
