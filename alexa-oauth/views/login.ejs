@@ -1,69 +1,65 @@
-<!-- views/login.ejs -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Login | Yantra</title>
-  <link rel="stylesheet" href="/style.css" />
+  <meta charset="UTF-8" />
+  <title>Yantra Login</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #f1f1f1;
+      background: #f2f2f2;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
       align-items: center;
+      justify-content: center;
       height: 100vh;
     }
-
     .container {
-      background-color: white;
-      padding: 40px;
-      border-radius: 16px;
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
-      text-align: center;
-      width: 320px;
+      background: #fff;
+      padding: 2em;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+      width: 300px;
     }
-
-    .container img {
+    img {
       width: 80px;
-      margin-bottom: 20px;
+      margin-bottom: 1em;
     }
-
-    .container input {
+    input {
       width: 100%;
-      padding: 12px;
-      margin: 8px 0;
-      box-sizing: border-box;
+      padding: 0.75em;
+      margin: 0.5em 0;
+      border-radius: 6px;
       border: 1px solid #ccc;
-      border-radius: 8px;
     }
-
-    .container button {
+    button {
       width: 100%;
-      padding: 12px;
-      background-color: #007aff;
+      padding: 0.75em;
+      background: #007AFF;
       color: white;
       border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
+      border-radius: 6px;
+      font-size: 16px;
     }
-
-    .container .error {
+    .error {
       color: red;
-      margin-top: 10px;
+      font-size: 0.9em;
+      text-align: center;
+      margin-top: 0.5em;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <img src="/logo.png" alt="Logo">
+    <img src="/logo.png" alt="Yantra Logo" />
     <form method="POST" action="/login">
-      <input name="email" placeholder="Email" type="email" required />
-      <input name="password" placeholder="Password" type="password" required />
-      <input type="hidden" name="client_id" value="<%= client_id %>" />
-      <input type="hidden" name="redirect_uri" value="<%= redirect_uri %>" />
-      <input type="hidden" name="state" value="<%= state %>" />
+      <input type="hidden" name="client_id" value="<%= client_id %>">
+      <input type="hidden" name="redirect_uri" value="<%= redirect_uri %>">
+      <input type="hidden" name="state" value="<%= state %>">
+
+      <input name="email" type="email" placeholder="Email" required />
+      <input name="password" type="password" placeholder="Password" required />
       <button type="submit">Login</button>
+
       <% if (error) { %>
         <div class="error"><%= error %></div>
       <% } %>
