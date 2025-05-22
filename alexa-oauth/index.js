@@ -26,94 +26,91 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-const userTokens = {};
+const userTokens = {}; // in-memory fallback
 
-// === Step 1: Alexa starts OAuth
+// === Step 1: Alexa -> /authorize
 app.get('/authorize', (req, res) => {
   const { redirect_uri, state, client_id } = req.query;
+
   if (!redirect_uri || !state || !client_id) {
-    console.error("❌ Missing query params in /authorize");
-    return res.status(400).send("Missing required query parameters.");
+    console.error("❌ Missing parameters in /authorize");
+    return res.status(400).send("Missing query parameters.");
   }
+
   const loginUrl = `/login?redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state)}&client_id=${encodeURIComponent(client_id)}`;
-  console.log("📍 Redirecting to login form:", loginUrl);
+  console.log("📍 Redirecting to login page:", loginUrl);
   res.redirect(loginUrl);
 });
 
-// === Step 2: Serve Login Form
+// === Step 2: Serve Login Page
 app.get('/login', (req, res) => {
-  const { redirect_uri, state, client_id } = req.query;
-  if (!redirect_uri || !state || !client_id) {
-    return res.status(400).send("Missing required query parameters.");
-  }
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'login.html'));
 });
 
-// === Step 3: Handle Login POST
+// === Step 3: Handle Login Form POST
 app.post('/login', async (req, res) => {
   const { email, password, redirect_uri, state, client_id } = req.body;
 
   if (!email || !password || !redirect_uri || !state || !client_id) {
-    console.error("❌ Missing form fields in POST /login");
-    return res.status(400).send("Invalid request");
+    console.error("❌ Invalid login form submission");
+    return res.status(400).send("Invalid login form.");
   }
 
   try {
-    console.log(`🔐 Login attempt for email: ${email}`);
+    console.log(`🔐 Login attempt from: ${email}`);
     const result = await axios.post(
       `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
       { email, password, returnSecureToken: true }
     );
 
     const uid = result.data.localId;
-    console.log(`✅ Login success. UID from Firebase: ${uid}`);
+    console.log(`✅ Firebase login success: ${email} | UID: ${uid}`);
 
     const code = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '10m' });
     const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
+    console.log("🔁 Redirecting back to Alexa:", redirectUrl);
 
-    console.log(`🔁 Redirecting to Alexa with code: ${code}`);
     res.redirect(redirectUrl);
   } catch (err) {
-    console.error("❌ Firebase login failed:", err.response?.data || err.message);
-    res.status(401).send("Invalid login credentials");
+    console.error("❌ Login failed:", err.response?.data || err.message);
+    res.status(401).send("Invalid login credentials. Please go back and try again.");
   }
 });
 
-// === Step 4: Token Exchange
+// === Step 4: Alexa calls /token
 app.post('/token', async (req, res) => {
   const { client_id, client_secret, code, grant_type, refresh_token } = req.body;
-  console.log("📥 /token request received:", req.body);
+  console.log("📥 /token request:", req.body);
 
   if (client_id !== CLIENT_ID || client_secret !== CLIENT_SECRET) {
-    console.error("❌ Invalid client credentials");
+    console.error("❌ Invalid Alexa credentials");
     return res.status(401).json({ error: 'invalid_client' });
   }
 
   try {
     if (grant_type === 'authorization_code') {
-      let decoded;
-      try {
-        decoded = jwt.verify(code, CLIENT_SECRET);
-        console.log("✅ Authorization code verified");
-      } catch (err) {
-        console.error("❌ Invalid auth code JWT:", err.message);
-        return res.status(400).json({ error: 'invalid_grant' });
-      }
-
+      const decoded = jwt.verify(code, CLIENT_SECRET);
       const uid = decoded.uid;
+      console.log("✅ Auth code verified, UID:", uid);
+
       const access_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '1h' });
       const new_refresh_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '30d' });
+
       userTokens[new_refresh_token] = { access_token, uid };
 
       try {
+        const userSnap = await firestore.collection('users').doc(uid).get();
+        const email = userSnap.exists ? userSnap.data().email : 'unknown';
+
         await firestore.collection('users').doc(uid).set({
-          email, // ✅ save email for lookups
+          email,
           access_token,
           refresh_token: new_refresh_token,
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });        
-        console.log(`✅ Stored tokens for UID: ${uid}`);
+        }, { merge: true });
+
+        console.log(`✅ Tokens saved for UID: ${uid} (${email})`);
       } catch (firestoreError) {
         console.error("❌ Firestore write error:", firestoreError);
       }
@@ -129,22 +126,19 @@ app.post('/token', async (req, res) => {
     if (grant_type === 'refresh_token') {
       const data = userTokens[refresh_token];
       if (!data) {
-        console.error("❌ Invalid refresh token");
+        console.error("❌ Refresh token not found");
         return res.status(400).json({ error: 'invalid_grant' });
       }
 
       const newAccessToken = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
       userTokens[refresh_token].access_token = newAccessToken;
 
-      try {
-        await firestore.collection('users').doc(data.uid).update({
-          access_token: newAccessToken,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-        console.log(`🔁 Refreshed token for UID: ${data.uid}`);
-      } catch (firestoreError) {
-        console.error("❌ Firestore update error:", firestoreError);
-      }
+      await firestore.collection('users').doc(data.uid).update({
+        access_token: newAccessToken,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      console.log("🔁 Refreshed access token for UID:", data.uid);
 
       return res.json({
         token_type: 'Bearer',
@@ -156,17 +150,17 @@ app.post('/token', async (req, res) => {
 
     return res.status(400).json({ error: 'unsupported_grant_type' });
   } catch (err) {
-    console.error("❌ Unexpected server error in /token:", err);
+    console.error("❌ /token handler error:", err);
     return res.status(500).json({ error: 'server_error', message: err.message });
   }
 });
 
-// === Callback Page
+// === Optional Callback Message
 app.get('/callback', (req, res) => {
   res.send(`<h2>✅ Alexa Account Linked</h2><p>You may now return to the Alexa app.</p>`);
 });
 
-// === Optional Profile Endpoint
+// === Profile API (optional)
 app.get('/profile', (req, res) => {
   const token = (req.headers.authorization || '').replace('Bearer ', '');
   try {
@@ -176,12 +170,6 @@ app.get('/profile', (req, res) => {
     console.error("❌ Invalid profile token:", err.message);
     return res.status(401).json({ error: 'invalid_token' });
   }
-});
-
-// === Fallback
-app.use((req, res) => {
-  console.warn(`⚠️ Unknown route hit: ${req.method} ${req.originalUrl}`);
-  res.status(404).send(`🔍 Unknown route: ${req.method} ${req.originalUrl}`);
 });
 
 app.listen(port, () => {

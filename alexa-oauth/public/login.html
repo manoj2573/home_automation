@@ -1,23 +1,66 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Login with Firebase</title>
+  <title>Login | Yantra Smart Home</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f3f4f6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .login-container {
+      background-color: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    .login-container img {
+      width: 100px;
+      margin-bottom: 20px;
+    }
+    .login-container input[type="email"],
+    .login-container input[type="password"] {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    .login-container input[type="submit"] {
+      width: 100%;
+      padding: 12px;
+      background-color: #f59e0b;
+      border: none;
+      color: white;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .login-container input[type="submit"]:hover {
+      background-color: #d97706;
+    }
+  </style>
 </head>
 <body>
-  <h2>Login</h2>
+  <div class="login-container">
+    <img src="logo.png" alt="Yantra Logo">
+    <form id="loginForm" method="POST" action="/login">
+      <input type="hidden" name="redirect_uri" id="redirect_uri">
+      <input type="hidden" name="state" id="state">
+      <input type="hidden" name="client_id" id="client_id">
 
-  <form id="loginForm" method="POST" action="/login">
-    <input type="hidden" name="redirect_uri" id="redirect_uri">
-    <input type="hidden" name="state" id="state">
-    <input type="hidden" name="client_id" id="client_id">
-
-    <label>Email:</label><br>
-    <input type="email" name="email" required><br>
-    <label>Password:</label><br>
-    <input type="password" name="password" required><br><br>
-
-    <input type="submit" value="Login">
-  </form>
+      <input type="email" name="email" placeholder="Email" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <input type="submit" value="Login">
+    </form>
+  </div>
 
   <script>
     const params = new URLSearchParams(window.location.search);
@@ -29,7 +72,6 @@
     document.getElementById("state").value = state || "";
     document.getElementById("client_id").value = client_id || "";
 
-    // ✅ Ensure action preserves query params on form submit
     const form = document.getElementById("loginForm");
     form.action = `/login?redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state)}&client_id=${encodeURIComponent(client_id)}`;
   </script>
