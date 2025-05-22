@@ -34,50 +34,25 @@ app.get("/authorize", (req, res) => {
 app.post("/login", async (req, res) => {
   const { email, password, client_id, redirect_uri, state } = req.body;
 
-  if (!email || !password || !redirect_uri || !state || !client_id) {
-    return res.status(400).send("Missing fields");
-  }
-
   try {
-    // ✅ Verify credentials using Firebase Auth REST API
-    const response = await axios.post(
-      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
-      {
-        email,
-        password,
-        returnSecureToken: true,
-      }
-    );
+    console.log("🔐 Attempting login for:", email);
 
-    const uid = response.data.localId;
+    const user = await admin.auth().getUserByEmail(email);
+    const uid = user.uid;
 
-    console.log(`✅ Login success. UID: ${uid}, Email: ${email}`);
+    // Generate code to return to Alexa
+    const code = Buffer.from(`${email}:${client_id}`).toString("base64");
+    console.log("✅ Generated code:", code);
 
-    // 🔐 Create access token (JWT)
-    const code = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: "10m" });
-    const redirectUrl = `${decodeURIComponent(redirect_uri)}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-
-
-    res.send(`
-      <html>
-        <head><title>Account Linked</title></head>
-        <body style="font-family:sans-serif;text-align:center;margin-top:60px;">
-          <h2>✅ Alexa Account Linked</h2>
-          <p>You may now close this window and return to the Alexa app.</p>
-          <script>
-            setTimeout(() => {
-              window.location.href = "${redirectUrl}";
-            }, 1500);
-          </script>
-        </body>
-      </html>
-    `);
-    
+    const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
+    console.log("🔁 Redirecting to:", redirectUrl);
+    res.redirect(redirectUrl);
   } catch (error) {
-    console.error("❌ Login failed:", error.response?.data || error.message);
-    res.status(401).send("Invalid username or password");
+    console.error("❌ Login failed:", error.message);
+    res.send("Login failed: " + error.message);
   }
 });
+
 
 // === Token Exchange
 app.post("/token", async (req, res) => {
