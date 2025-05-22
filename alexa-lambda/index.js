@@ -167,26 +167,40 @@ exports.handler = async (event) => {
   const correlationToken = directive.header.correlationToken;
 
   let token, uid;
-
   try {
     if (directive.payload?.scope?.token) {
       token = directive.payload.scope.token;
     } else if (directive.endpoint?.scope?.token) {
       token = directive.endpoint.scope.token;
     } else {
-      throw new Error("Token not found in directive");
+      throw new Error("Token not found");
     }
   
-    const decoded = jwt.verify(token, CLIENT_SECRET); // ✅ Decode JWT
-    uid = decoded.uid;                                // ✅ Proper assignment
-    console.log("✅ UID from JWT:", uid);
+    if (token.split('.').length === 3) {
+      const decoded = jwt.verify(token, CLIENT_SECRET);
+      uid = decoded.uid;
+      console.log("✅ UID from JWT:", uid);
+    } else {
+      // fallback: token is base64 of email:timestamp
+      const decoded = Buffer.from(token, 'base64').toString('utf-8');
+      const email = decoded.split(':')[0];
+      console.log("📧 Fallback email from token:", email);
   
-    const test = await firestore.doc(`users/${uid}`).get();
-    console.log("📄 Firestore user exists:", test.exists);
+      // 🔍 fetch UID from Firestore by email
+      const snap = await firestore.collection('users')
+        .where('email', '==', email)
+        .limit(1)
+        .get();
+  
+      if (snap.empty) throw new Error("User not found by email");
+  
+      uid = snap.docs[0].id;
+      console.log("✅ UID from email lookup:", uid);
+    }
   } catch (err) {
-    console.error("❌ Failed to decode JWT:", err.message);
+    console.error("❌ Token decode error:", err.message);
     throw new Error("Unauthorized: Invalid token");
-  }
+  }  
   
   if (namespace === 'Alexa.Discovery' && name === 'Discover') {
     const snapshot = await firestore.collection('users').doc(uid).collection('devices').get();
