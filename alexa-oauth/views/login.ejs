@@ -1,55 +1,73 @@
+<!-- views/login.ejs -->
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Alexa Login</title>
+  <title>Login | Yantra</title>
+  <link rel="stylesheet" href="/style.css" />
   <style>
     body {
-      font-family: sans-serif;
-      background-color: #f4f4f4;
+      font-family: Arial, sans-serif;
+      background-color: #f1f1f1;
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
       height: 100vh;
     }
-    .login-container {
-      background: white;
+
+    .container {
+      background-color: white;
       padding: 40px;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 16px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
       text-align: center;
+      width: 320px;
     }
-    img {
-      height: 60px;
+
+    .container img {
+      width: 80px;
       margin-bottom: 20px;
     }
-    input {
+
+    .container input {
       width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-      margin-bottom: 20px;
-      border-radius: 8px;
+      padding: 12px;
+      margin: 8px 0;
+      box-sizing: border-box;
       border: 1px solid #ccc;
+      border-radius: 8px;
     }
-    button {
+
+    .container button {
       width: 100%;
-      background-color: #4a90e2;
+      padding: 12px;
+      background-color: #007aff;
       color: white;
-      padding: 10px;
       border: none;
       border-radius: 8px;
+      cursor: pointer;
       font-weight: bold;
+    }
+
+    .container .error {
+      color: red;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
-  <form class="login-container" method="POST" action="/login">
-    <img src="/logo.png" alt="Logo" />
-    <input name="email" type="email" placeholder="Email" required />
-    <input name="password" type="password" placeholder="Password" required />
-    <input type="hidden" name="redirect_uri" value="<%= redirect_uri %>" />
-    <input type="hidden" name="state" value="<%= state %>" />
-    <input type="hidden" name="client_id" value="<%= client_id %>" />
-    <button type="submit">Sign In</button>
-  </form>
+  <div class="container">
+    <img src="/logo.png" alt="Logo">
+    <form method="POST" action="/login">
+      <input name="email" placeholder="Email" type="email" required />
+      <input name="password" placeholder="Password" type="password" required />
+      <input type="hidden" name="client_id" value="<%= client_id %>" />
+      <input type="hidden" name="redirect_uri" value="<%= redirect_uri %>" />
+      <input type="hidden" name="state" value="<%= state %>" />
+      <button type="submit">Login</button>
+      <% if (error) { %>
+        <div class="error"><%= error %></div>
+      <% } %>
+    </form>
+  </div>
 </body>
 </html>
