@@ -1,14 +1,4 @@
 {
-<<<<<<< HEAD
-  "name": "alexa-smarthome-handler",
-  "version": "1.0.0",
-  "main": "index.js",
-  "dependencies": {
-    "firebase-admin": "^11.10.1"
-  }
-}
-
-=======
   "name": "alexa-oauth",
   "version": "1.0.0",
   "description": "OAuth server for Alexa Smart Home",
@@ -23,4 +13,3 @@
     "firebase-admin": "^11.10.1"
   }
 }
->>>>>>> 5c09eef (Initial commit for Alexa OAuth server)
