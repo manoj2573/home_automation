@@ -82,20 +82,41 @@ app.post("/login", async (req, res) => {
 // === Token Exchange
 app.post("/token", async (req, res) => {
   const { code, grant_type } = req.body;
-  if (grant_type !== "authorization_code") return res.status(400).json({ error: "unsupported_grant_type" });
+
+  if (grant_type !== "authorization_code") {
+    return res.status(400).json({ error: "unsupported_grant_type" });
+  }
 
   try {
-    const decoded = jwt.verify(code, CLIENT_SECRET);
-    const uid = decoded.uid;
-    const access_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: "1h" });
-    const refresh_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: "30d" });
+    const decoded = Buffer.from(code, "base64").toString("utf8");
+    const [email, clientId] = decoded.split(":");
 
-    await firestore.collection("users").doc(uid).update({ access_token, refresh_token });
-    res.json({ token_type: "Bearer", access_token, refresh_token, expires_in: 3600 });
-  } catch (err) {
-    res.status(401).json({ error: "invalid_grant" });
+    const user = await admin.auth().getUserByEmail(email);
+    const uid = user.uid;
+
+    // ✅ Create real JWT token with UID (not base64 string)
+    const access_token = jwt.sign({ uid }, "alexa-secret", { expiresIn: "1h" });
+    const refresh_token = jwt.sign({ uid }, "alexa-secret", { expiresIn: "30d" });
+
+    // Optional: store in Firestore for proactive events
+    await firestore.collection("users").doc(uid).set({
+      access_token,
+      refresh_token,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    return res.json({
+      token_type: "Bearer",
+      access_token,
+      refresh_token,
+      expires_in: 3600
+    });
+  } catch (error) {
+    console.error("❌ Token exchange failed:", error.message);
+    return res.status(400).json({ error: "invalid_grant" });
   }
 });
+
 
 // === Refresh token
 app.post("/refresh", async (req, res) => {
