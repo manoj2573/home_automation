@@ -166,25 +166,28 @@ exports.handler = async (event) => {
   const endpointId = directive.endpoint?.endpointId;
   const correlationToken = directive.header.correlationToken;
 
-  let token;
+  let token, uid;
+
   try {
     if (directive.payload?.scope?.token) {
-      token = directive.payload.scope.token; // for Discovery
+      token = directive.payload.scope.token;
     } else if (directive.endpoint?.scope?.token) {
-      token = directive.endpoint.scope.token; // for control/report
+      token = directive.endpoint.scope.token;
     } else {
       throw new Error("Token not found in directive");
     }
   
-    const decoded = jwt.verify(token, CLIENT_SECRET); // Must match OAuth signing secret
-    uid = decoded.uid;
+    const decoded = jwt.verify(token, CLIENT_SECRET); // ✅ Decode JWT
+    uid = decoded.uid;                                // ✅ Proper assignment
     console.log("✅ UID from JWT:", uid);
+  
+    const test = await firestore.doc(`users/${uid}`).get();
+    console.log("📄 Firestore user exists:", test.exists);
   } catch (err) {
     console.error("❌ Failed to decode JWT:", err.message);
     throw new Error("Unauthorized: Invalid token");
   }
   
-
   if (namespace === 'Alexa.Discovery' && name === 'Discover') {
     const snapshot = await firestore.collection('users').doc(uid).collection('devices').get();
     const endpoints = snapshot.docs.map(doc => {

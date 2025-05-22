@@ -6,7 +6,7 @@ const cors = require('cors');
 const path = require('path');
 const axios = require('axios');
 
-// === Firebase Init ===
+// === Firebase Admin Init ===
 const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -28,26 +28,29 @@ app.use(express.static('public'));
 
 const userTokens = {}; // In-memory token store
 
-// === Step 1: Alexa starts OAuth
+// === Step 1: Alexa starts OAuth flow
 app.get('/authorize', (req, res) => {
   const { redirect_uri, state, client_id } = req.query;
+
   if (!redirect_uri || !state || !client_id) {
-    console.error("❌ Missing query params in /authorize");
+    console.error("❌ /authorize missing parameters");
     return res.status(400).send("Missing required query parameters.");
   }
 
+  console.log("🔁 /authorize hit. Redirecting to login.html");
   const loginUrl = `/login?redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state)}&client_id=${encodeURIComponent(client_id)}`;
-  console.log("📍 Redirecting to login form:", loginUrl);
   res.redirect(loginUrl);
 });
 
-// === Step 2: Serve Login Form
+// === Step 2: Serve Login Page
 app.get('/login', (req, res) => {
   const { redirect_uri, state, client_id } = req.query;
+
   if (!redirect_uri || !state || !client_id) {
     return res.status(400).send("Missing required query parameters.");
   }
 
+  console.log("🧾 Serving login form...");
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'login.html'));
 });
@@ -57,7 +60,7 @@ app.post('/login', async (req, res) => {
   const { email, password, redirect_uri, state, client_id } = req.body;
 
   if (!email || !password || !redirect_uri || !state || !client_id) {
-    console.error("❌ Missing form fields in POST /login");
+    console.error("❌ /login POST missing fields");
     return res.status(400).send("Invalid request");
   }
 
@@ -68,26 +71,26 @@ app.post('/login', async (req, res) => {
     );
 
     const uid = result.data.localId;
+    console.log(`✅ Login success. UID from Firebase: ${uid}`);
+
     const code = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: '10m' });
 
-    console.log(`✅ Login success for UID: ${uid}`);
     const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
-    console.log("🔁 Redirecting Alexa back to:", redirectUrl);
+    console.log("🔁 Redirecting Alexa to:", redirectUrl);
     res.redirect(redirectUrl);
   } catch (err) {
-    console.error("❌ Firebase login failed:", err.response?.data || err.message);
+    console.error("❌ Firebase Auth failed:", err.response?.data || err.message);
     res.status(401).send("Invalid login credentials");
   }
 });
 
-// === Step 4: Token Exchange
+// === Step 4: Alexa calls /token to get access token
 app.post('/token', async (req, res) => {
   const { client_id, client_secret, code, grant_type, refresh_token } = req.body;
-  console.log("📥 Alexa called /token with body:", JSON.stringify(req.body));
-  console.log("📥 /token request:", req.body);
+  console.log("📥 Alexa called /token:", req.body);
 
   if (client_id !== CLIENT_ID || client_secret !== CLIENT_SECRET) {
-    console.error("❌ Invalid client credentials");
+    console.error("❌ Invalid OAuth client credentials");
     return res.status(401).json({ error: 'invalid_client' });
   }
 
@@ -97,7 +100,7 @@ app.post('/token', async (req, res) => {
       try {
         decoded = jwt.verify(code, CLIENT_SECRET);
       } catch (err) {
-        console.error("❌ Invalid auth code JWT:", err.message);
+        console.error("❌ JWT verify failed:", err.message);
         return res.status(400).json({ error: 'invalid_grant' });
       }
 
@@ -114,9 +117,9 @@ app.post('/token', async (req, res) => {
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
-        console.log("✅ Tokens stored in Firestore for UID:", uid);
-      } catch (firestoreError) {
-        console.error("❌ Firestore error:", firestoreError);
+        console.log(`✅ Stored access_token and refresh_token for UID: ${uid}`);
+      } catch (firestoreErr) {
+        console.error("❌ Firestore write error:", firestoreErr.message);
       }
 
       return res.json({
@@ -129,7 +132,10 @@ app.post('/token', async (req, res) => {
 
     if (grant_type === 'refresh_token') {
       const data = userTokens[refresh_token];
-      if (!data) return res.status(400).json({ error: 'invalid_grant' });
+      if (!data) {
+        console.warn("❌ Refresh token not found in memory");
+        return res.status(400).json({ error: 'invalid_grant' });
+      }
 
       const newAccessToken = jwt.sign({ uid: data.uid }, CLIENT_SECRET, { expiresIn: '1h' });
       userTokens[refresh_token].access_token = newAccessToken;
@@ -139,9 +145,9 @@ app.post('/token', async (req, res) => {
           access_token: newAccessToken,
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
-        console.log("🔁 Refreshed token for UID:", data.uid);
-      } catch (firestoreError) {
-        console.error("❌ Firestore update error:", firestoreError);
+        console.log("🔁 Token refreshed for UID:", data.uid);
+      } catch (firestoreErr) {
+        console.error("❌ Firestore update error:", firestoreErr.message);
       }
 
       return res.json({
@@ -159,25 +165,26 @@ app.post('/token', async (req, res) => {
   }
 });
 
-// === Callback Confirmation Page
+// === Confirmation Page
 app.get('/callback', (req, res) => {
   res.send(`<h2>✅ Alexa Account Linked</h2><p>You may now return to the Alexa app.</p>`);
 });
 
-// === Profile Endpoint
+// === Optional: Get UID from access token
 app.get('/profile', (req, res) => {
   const token = (req.headers.authorization || '').replace('Bearer ', '');
   try {
     const decoded = jwt.verify(token, CLIENT_SECRET);
+    console.log("🪪 Profile decoded:", decoded);
     res.json({ user_id: decoded.uid });
   } catch (err) {
     return res.status(401).json({ error: 'invalid_token' });
   }
 });
 
-// === Fallback for Debugging
+// === Fallback for Unknown Routes
 app.use((req, res) => {
-  res.status(404).send(`🔍 Unknown route: ${req.method} ${req.originalUrl}`);
+  res.status(404).send(`❓ Unknown route: ${req.method} ${req.originalUrl}`);
 });
 
 app.listen(port, () => {
