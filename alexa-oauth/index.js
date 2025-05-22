@@ -55,7 +55,8 @@ app.post("/login", async (req, res) => {
 
     // 🔐 Create access token (JWT)
     const code = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: "10m" });
-    const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
+    const redirectUrl = `${decodeURIComponent(redirect_uri)}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+
 
     res.redirect(redirectUrl);
   } catch (error) {
