@@ -5,7 +5,8 @@
 </head>
 <body>
   <h2>Login</h2>
-  <form method="POST" action="/login">
+
+  <form id="loginForm" method="POST" action="/login">
     <input type="hidden" name="redirect_uri" id="redirect_uri">
     <input type="hidden" name="state" id="state">
     <input type="hidden" name="client_id" id="client_id">
@@ -19,11 +20,18 @@
   </form>
 
   <script>
-    // Parse query params and populate hidden fields
     const params = new URLSearchParams(window.location.search);
-    document.getElementById("redirect_uri").value = params.get("redirect_uri") || "";
-    document.getElementById("state").value = params.get("state") || "";
-    document.getElementById("client_id").value = params.get("client_id") || "";
+    const redirect_uri = params.get("redirect_uri");
+    const state = params.get("state");
+    const client_id = params.get("client_id");
+
+    document.getElementById("redirect_uri").value = redirect_uri || "";
+    document.getElementById("state").value = state || "";
+    document.getElementById("client_id").value = client_id || "";
+
+    // ✅ Ensure action preserves query params on form submit
+    const form = document.getElementById("loginForm");
+    form.action = `/login?redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state)}&client_id=${encodeURIComponent(client_id)}`;
   </script>
 </body>
 </html>

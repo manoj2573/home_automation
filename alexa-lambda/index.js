@@ -2,6 +2,7 @@ const admin = require('firebase-admin');
 const awsIot = require('aws-iot-device-sdk');
 const colorConvert = require('color-convert');
 const https = require('https');
+const jwt = require('jsonwebtoken');
 
 // === Firebase Init ===
 if (!admin.apps.length) {
@@ -14,6 +15,8 @@ if (!admin.apps.length) {
 const firestore = admin.firestore();
 console.log("🧾 Firebase initialized with project:", admin.app().options.projectId);
 
+const CLIENT_SECRET = 'alexa-secret';
+
 // === MQTT Init ===
 const mqttClient = awsIot.device({
   keyPath: './private.pem.key',
@@ -25,7 +28,6 @@ const mqttClient = awsIot.device({
 
 mqttClient.on('connect', () => {
   console.log('✅ Connected to AWS IoT Core');
-
   const topic = '+/mobile';
   mqttClient.subscribe(topic, (err, granted) => {
     if (err) {
@@ -35,7 +37,6 @@ mqttClient.on('connect', () => {
     }
   });
 });
-
 
 function sendToDevice(deviceId, payload) {
   mqttClient.publish(`${deviceId}/device`, JSON.stringify(payload));
@@ -69,8 +70,8 @@ function postToAlexaGateway(event, token) {
 mqttClient.on('message', async (topic, message) => {
   const payload = JSON.parse(message.toString());
   const endpointId = topic.split('/')[0];
-
   const reports = [];
+
   if ('state' in payload) {
     reports.push({
       namespace: 'Alexa.PowerController',
@@ -164,7 +165,27 @@ exports.handler = async (event) => {
   const { namespace, name } = directive.header;
   const endpointId = directive.endpoint?.endpointId;
   const correlationToken = directive.header.correlationToken;
-  const uid = "XAlJhkRbu7O85bboNjDHSvzzbXg1";
+
+  let uid;
+  let token;
+
+  try {
+    if (directive.payload?.scope?.token) {
+      token = directive.payload.scope.token;
+    } else if (directive.endpoint?.scope?.token) {
+      token = directive.endpoint.scope.token;
+    } else {
+      throw new Error("Token not found in directive");
+    }
+
+    const decoded = jwt.verify(token, CLIENT_SECRET);
+    uid = decoded.uid;
+    console.log("✅ UID from token:", uid);
+  } catch (err) {
+    console.error("❌ Failed to decode token:", err);
+    throw new Error("Unauthorized: Invalid token");
+  }
+
 
   if (namespace === 'Alexa.Discovery' && name === 'Discover') {
     const snapshot = await firestore.collection('users').doc(uid).collection('devices').get();
