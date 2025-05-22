@@ -8,7 +8,7 @@ const jwt = require("jsonwebtoken");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const FIREBASE_API_KEY = "YOUR_FIREBASE_WEB_API_KEY"; // Replace this
+const FIREBASE_API_KEY = "AIzaSyDW5glX6e8GMXtlAlyZnoDB6KfWDqw08X0"; // Replace this
 const CLIENT_SECRET = "alexa-secret"; // Same used in Lambda
 
 const serviceAccount = require("./serviceAccountKey.json");
