@@ -83,6 +83,7 @@ app.post('/login', async (req, res) => {
 // === Step 4: Token Exchange
 app.post('/token', async (req, res) => {
   const { client_id, client_secret, code, grant_type, refresh_token } = req.body;
+  console.log("📥 Alexa called /token with body:", JSON.stringify(req.body));
   console.log("📥 /token request:", req.body);
 
   if (client_id !== CLIENT_ID || client_secret !== CLIENT_SECRET) {
