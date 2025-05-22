@@ -32,30 +32,35 @@ app.get("/authorize", (req, res) => {
 
 // === Login POST
 app.post("/login", async (req, res) => {
-  const { email, password, redirect_uri, client_id, state } = req.body;
+  const { email, password, client_id, redirect_uri, state } = req.body;
+
+  if (!email || !password || !redirect_uri || !state || !client_id) {
+    return res.status(400).send("Missing fields");
+  }
 
   try {
-    const result = await axios.post(
+    // ✅ Verify credentials using Firebase Auth REST API
+    const response = await axios.post(
       `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
-      { email, password, returnSecureToken: true }
+      {
+        email,
+        password,
+        returnSecureToken: true,
+      }
     );
 
-    const uid = result.data.localId;
-    const access_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: "1h" });
-    const refresh_token = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: "30d" });
+    const uid = response.data.localId;
 
-    await firestore.collection("users").doc(uid).set({ email, access_token, refresh_token }, { merge: true });
+    console.log(`✅ Login success. UID: ${uid}, Email: ${email}`);
 
-    const redirectUrl = `${redirect_uri}?code=${access_token}&state=${state}`;
+    // 🔐 Create access token (JWT)
+    const code = jwt.sign({ uid }, CLIENT_SECRET, { expiresIn: "10m" });
+    const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
+
     res.redirect(redirectUrl);
-  } catch (err) {
-    console.error("❌ Login failed:", err.response?.data || err.message);
-    res.render("login", {
-      client_id,
-      redirect_uri,
-      state,
-      error: "Invalid email or password",
-    });
+  } catch (error) {
+    console.error("❌ Login failed:", error.response?.data || error.message);
+    res.status(401).send("Invalid username or password");
   }
 });
 
