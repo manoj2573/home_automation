@@ -19,7 +19,7 @@ console.log("✅ Firebase Admin initialized");
 
 const CLIENT_ID = 'amzn1.application-oa2-client.alexa-client';
 const CLIENT_SECRET = 'alexa-secret';
-const FIREBASE_API_KEY = 'YOUR_FIREBASE_WEB_API_KEY'; // 🔁 Replace this
+const FIREBASE_API_KEY = 'AIzaSyDW5glX6e8GMXtlAlyZnoDB6KfWDqw08X0'; // 🔁 Replace this
 
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
