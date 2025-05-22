@@ -7,7 +7,7 @@ const axios = require('axios');
 const jwt = require('jsonwebtoken');
 
 const CLIENT_SECRET = 'alexa-secret';
-const FIREBASE_API_KEY = 'YOUR_FIREBASE_API_KEY';
+const FIREBASE_API_KEY = 'AIzaSyDW5glX6e8GMXtlAlyZnoDB6KfWDqw08X0';
 
 const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({
