@@ -37,19 +37,29 @@ app.post("/login", async (req, res) => {
   try {
     console.log("🔐 Attempting login for:", email);
 
-    const user = await admin.auth().getUserByEmail(email);
-    const uid = user.uid;
+    // ✅ Call Firebase REST API to verify password
+    const resp = await axios.post(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
+      email,
+      password,
+      returnSecureToken: true
+    });
 
-    // Generate code to return to Alexa
+    const uid = resp.data.localId; // ✅ This is the Firebase UID
+
+    // 🔑 Generate authorization code (base64)
     const code = Buffer.from(`${email}:${client_id}`).toString("base64");
-    console.log("✅ Generated code:", code);
+    console.log("✅ Login success. UID:", uid);
 
     const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
-    console.log("🔁 Redirecting to:", redirectUrl);
     res.redirect(redirectUrl);
   } catch (error) {
-    console.error("❌ Login failed:", error.message);
-    res.send("Login failed: " + error.message);
+    console.error("❌ Login failed:", error.response?.data?.error?.message || error.message);
+    res.render("login", {
+      client_id,
+      redirect_uri,
+      state,
+      error: "Invalid email or password."
+    });
   }
 });
 

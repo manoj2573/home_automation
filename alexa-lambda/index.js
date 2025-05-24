@@ -9,6 +9,7 @@ if (!admin.apps.length) {
   const serviceAccount = require('./serviceAccountKey.json');
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
+    projectId: serviceAccount.project_id,
   });
 }
 const firestore = admin.firestore();
@@ -200,15 +201,20 @@ exports.handler = async (event) => {
   }  
   
   if (namespace === 'Alexa.Discovery' && name === 'Discover') {
+    console.log("🔍 Running device discovery for UID:", uid);
     const snapshot = await firestore.collection('users').doc(uid).collection('devices').get();
+    if (snapshot.empty) {
+      console.warn("⚠️ No devices found in Firestore for UID:", uid);
+    }
     const endpoints = snapshot.docs.map(doc => {
       const d = doc.data();
+      console.log(`📦 Found device: ${d.deviceId} (${d.type})`);
       const capabilities = [
         {
           type: 'AlexaInterface',
           interface: 'Alexa.PowerController',
           version: '3',
-          properties: { supported: [{ name: 'powerState' }], retrievable: false },
+          properties: { supported: [{ name: 'powerState' }], retrievable: true,proactivelyReported: true },
         },
         {
           type: 'AlexaInterface',
@@ -223,7 +229,8 @@ exports.handler = async (event) => {
           type: 'AlexaInterface',
           interface: 'Alexa.BrightnessController',
           version: '3',
-          properties: { supported: [{ name: 'brightness' }], retrievable: false },
+          properties: { supported: [{ name: 'brightness' }], retrievable: true,
+          proactivelyReported: true },
         });
       }
       if (d.type === 'RGB') {
@@ -231,12 +238,13 @@ exports.handler = async (event) => {
           type: 'AlexaInterface',
           interface: 'Alexa.ColorController',
           version: '3',
-          properties: { supported: [{ name: 'color' }], retrievable: false },
+          properties: { supported: [{ name: 'color' }], retrievable: true,
+          proactivelyReported: true },
         });
       }
       return {
         endpointId: d.deviceId,
-        manufacturerName: 'ESP32Home',
+        manufacturerName: 'YANTRA',
         friendlyName: d.name,
         description: `Smart ${d.type}`,
         displayCategories: getAlexaCategory(d.type),
@@ -258,8 +266,49 @@ exports.handler = async (event) => {
   }
 
   if (namespace === 'Alexa' && name === 'ReportState') {
+    const doc = await firestore.doc(`users/${uid}/devices/${endpointId}`).get();
+    if (!doc.exists) throw new Error("Device not found");
+    const d = doc.data();
+  
+    const properties = [];
+  
+    if (d.state !== undefined) {
+      properties.push({
+        namespace: 'Alexa.PowerController',
+        name: 'powerState',
+        value: d.state ? 'ON' : 'OFF',
+        timeOfSample: new Date().toISOString(),
+        uncertaintyInMilliseconds: 500
+      });
+    }
+  
+    if (d.sliderValue !== undefined && d.type !== 'RGB') {
+      properties.push({
+        namespace: 'Alexa.BrightnessController',
+        name: 'brightness',
+        value: Math.round((d.sliderValue / 90) * 100),
+        timeOfSample: new Date().toISOString(),
+        uncertaintyInMilliseconds: 500
+      });
+    }
+  
+    if (d.color && d.type === 'RGB') {
+      const hsv = colorConvert.hex.hsv(d.color.replace('#', ''));
+      properties.push({
+        namespace: 'Alexa.ColorController',
+        name: 'color',
+        value: {
+          hue: hsv[0],
+          saturation: hsv[1] / 100,
+          brightness: hsv[2] / 100
+        },
+        timeOfSample: new Date().toISOString(),
+        uncertaintyInMilliseconds: 500
+      });
+    }
+  
     return {
-      context: { properties: [] },
+      context: { properties },
       event: {
         header: {
           namespace: 'Alexa',
@@ -273,6 +322,7 @@ exports.handler = async (event) => {
       }
     };
   }
+  
 
   if (namespace === 'Alexa.PowerController') {
     const doc = await firestore.doc(`users/${uid}/devices/${endpointId}`).get();
@@ -287,6 +337,7 @@ exports.handler = async (event) => {
     sendToDevice(d.deviceId, payload);
     await doc.ref.update({ state: payload.state });
     return buildAlexaResponse(endpointId, correlationToken, 'Alexa.PowerController', 'powerState', name === 'TurnOn' ? 'ON' : 'OFF');
+    console.log("⚡ Sending power payload:", payload);
   }
 
   if (namespace === 'Alexa.BrightnessController') {
@@ -305,6 +356,7 @@ exports.handler = async (event) => {
     sendToDevice(d.deviceId, payload);
     await doc.ref.update({ sliderValue: deviceValue, state: true });
     return buildAlexaResponse(endpointId, correlationToken, 'Alexa.BrightnessController', 'brightness', alexaValue);
+    console.log("⚡ Sending brightness payload:", payload);
   }
 
   if (namespace === 'Alexa.ColorController') {
@@ -325,6 +377,7 @@ exports.handler = async (event) => {
     sendToDevice(d.deviceId, payload);
     await doc.ref.update({ color: hex, state: true });
     return buildAlexaResponse(endpointId, correlationToken, 'Alexa.ColorController', 'color', directive.payload.color);
+    console.log("⚡ Sending color payload:", payload);
   }
 
   throw new Error('Unsupported directive');
